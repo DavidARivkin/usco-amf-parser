@@ -18,6 +18,10 @@
  * 	} );
  * 	loader.load( './models/amf/slotted_disk.amf' );
  */
+
+//TODO: add magic number detection to determine if file is a zip file or not
+//see here : http://en.wikipedia.org/wiki/List_of_file_signatures
+
 THREE = require( 'three' ); //CHEAP HACK !!
 
 THREE.AMFParser = function () {
@@ -34,17 +38,62 @@ THREE.AMFParser.prototype = {
 
 THREE.AMFParser.prototype.parse = function (data) {
 
-	//big question : should we be using something more like the COLLADA loader ??
+  var isZipped = function () {
+		var expect, face_size, n_faces, reader;
+		reader = new DataView( binData );
+		face_size = (32 / 8 * 3) + ((32 / 8 * 3) * 3) + (16 / 8);
+		
+		n_faces = reader.getUint32(80,true);
+		expect = 80 + (32 / 8) + (n_faces * face_size);
+		return expect === reader.byteLength;
+	};
+
+  isZipped() ? data = this.unpack( data )
+
+
+  //big question : should we be using something more like the COLLADA loader ??
 	var xmlDoc = this._parseXML( data );
 	var root = xmlDoc.documentElement;
 	if( root.nodeName !== "amf")
 	{
 		throw("Unvalid AMF document, should have a root node called 'amf'");
 	}
-	
-	console.log("pouet")
+
 	return this._parseObjects(root);
+		
 };
+
+THREE.AMFParser.prototype.unpack = function( data )
+{
+  //TODO: unpack zip data to xml
+  //1F 9D
+  //1F A0
+  //50 4B 03 04, 50 4B 05 06 (empty archive) or 50 4B 07 08 (spanned archive)
+
+  //TODO: get binary see http://stackoverflow.com/questions/327685/is-there-a-way-to-read-binary-data-in-javascript
+  //data
+  var buffer = reader.result;
+      var int32View = new Int32Array(buffer);
+      switch(int32View[0]) {
+          case 1196314761: 
+              file.verified_type = "image/png";
+              break;
+          case 944130375:
+              file.verified_type = "image/gif";
+              break;
+          case 544099650:
+              file.verified_type = "image/bmp";
+              break;
+          case -520103681:
+              file.verified_type = "image/jpg";
+              break;
+          default:
+ 							file.verified_type = "unknown";
+              break;
+      }
+		};
+
+}
 
 THREE.AMFParser.prototype._parseObjects = function ( root ){
 
