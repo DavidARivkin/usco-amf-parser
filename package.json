@@ -8,13 +8,14 @@
   },
   "main": "AMFParser.js",
   "dependencies": {
-    "jszip": "~0.2.1"
+    "jszip": "~0.2.1",
+    "xmldom": "~0.1.16"
   },
   "devDependencies": {
     "jasmine-node": "",
     "three": ""
   },
   "scripts": {
-    "test": "jasmine-node --coffee specs/"
+    "test": "jasmine-node specs/"
   }
 }
