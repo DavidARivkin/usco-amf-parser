@@ -22,7 +22,13 @@
 //TODO: add magic number detection to determine if file is a zip file or not
 //see here : http://en.wikipedia.org/wiki/List_of_file_signatures
 
-THREE = require( 'three' ); //CHEAP HACK !!
+var isNode = 
+    typeof global !== "undefined" && 
+    {}.toString.call(global) == '[object global]';
+
+
+if(isNode) THREE = require( 'three' ); 
+if(isNode) JSZip = require( 'jszip' );
 
 THREE.AMFParser = function () {
 	this.defaultColor = new THREE.Color( "#cccccc" );
@@ -38,18 +44,7 @@ THREE.AMFParser.prototype = {
 
 THREE.AMFParser.prototype.parse = function (data) {
 
-  var isZipped = function () {
-		var expect, face_size, n_faces, reader;
-		reader = new DataView( binData );
-		face_size = (32 / 8 * 3) + ((32 / 8 * 3) * 3) + (16 / 8);
-		
-		n_faces = reader.getUint32(80,true);
-		expect = 80 + (32 / 8) + (n_faces * face_size);
-		return expect === reader.byteLength;
-	};
-
-  isZipped() ? data = this.unpack( data )
-
+  var data = this.unpack(data);
 
   //big question : should we be using something more like the COLLADA loader ??
 	var xmlDoc = this._parseXML( data );
@@ -65,6 +60,27 @@ THREE.AMFParser.prototype.parse = function (data) {
 
 THREE.AMFParser.prototype.unpack = function( data )
 {
+  try
+  {
+    var zip = new JSZip(data);
+    for(var entryName in zip.files)
+    {
+      var entry = zip.files[entryName];
+      if( entry._data !== null && entry !== undefined)
+      {
+        //console.log(entry);
+        var rawData = entry.asText()
+        return rawData;
+        //console.log("rawData",rawData); 
+      }
+   }
+  }
+    catch(error)
+  {
+     return this.ensureString(data);
+  }
+
+
   //TODO: unpack zip data to xml
   //1F 9D
   //1F A0
@@ -72,6 +88,7 @@ THREE.AMFParser.prototype.unpack = function( data )
 
   //TODO: get binary see http://stackoverflow.com/questions/327685/is-there-a-way-to-read-binary-data-in-javascript
   //data
+  /*
   var buffer = reader.result;
       var int32View = new Int32Array(buffer);
       switch(int32View[0]) {
@@ -91,9 +108,39 @@ THREE.AMFParser.prototype.unpack = function( data )
  							file.verified_type = "unknown";
               break;
       }
-		};
+		};*/
 
 }
+
+
+THREE.AMFParser.prototype.ensureString = function (buf) {
+
+	if (typeof buf !== "string"){
+		var array_buffer = new Uint8Array(buf);
+		var str = '';
+		for(var i = 0; i < buf.byteLength; i++) {
+			str += String.fromCharCode(array_buffer[i]); // implicitly assumes little-endian
+		}
+		return str;
+	} else {
+		return buf;
+	}
+
+};
+
+THREE.AMFParser.prototype.ensureBinary = function (buf) {
+
+	if (typeof buf === "string"){
+		var array_buffer = new Uint8Array(buf.length);
+		for(var i = 0; i < buf.length; i++) {
+			array_buffer[i] = buf.charCodeAt(i) & 0xff; // implicitly assumes little-endian
+		}
+		return array_buffer.buffer || array_buffer;
+	} else {
+		return buf;
+	}
+
+};
 
 THREE.AMFParser.prototype._parseObjects = function ( root ){
 
@@ -109,7 +156,7 @@ THREE.AMFParser.prototype._parseObjects = function ( root ){
 		var objectData = objectsData[i];
 		
 		var objectId = objectData.attributes.getNamedItem("id").nodeValue;
-		console.log("object id", objectId);
+		//console.log("object id", objectId);
 		
 		var geometry = this._parseGeometries(objectData);
 		var volumes = this._parseVolumes(objectData, geometry);
@@ -156,7 +203,7 @@ THREE.AMFParser.prototype._parseObjects = function ( root ){
 		
 		//add additional data to mesh
 		var metadata = parseMetaData( objectData );
-		console.log("meta", metadata);
+		//console.log("meta", metadata);
 		//add meta data to mesh
 		if('name' in metadata)
 		{
@@ -226,7 +273,7 @@ THREE.AMFParser.prototype._parseVolumes = function (meshData, geometryData){
 	//get volumes data
 	var currentGeometry = geometryData["geom"]
 	var volumesList = meshData.getElementsByTagName("volume");
-	console.log("    volumes:",volumesList.length);
+	//console.log("    volumes:",volumesList.length);
 	
 	for(var i=0; i<volumesList.length;i++)
 	{
@@ -241,7 +288,7 @@ THREE.AMFParser.prototype._parseVolumes = function (meshData, geometryData){
 		{
 			materialId=materialId.nodeValue;
 			var materialColor = this.materials[materialId].color;
-			console.log("volumeMaterial",materialId,"color",materialColor);
+			//console.log("volumeMaterial",materialId,"color",materialColor);
 		}
 		
 		
@@ -361,7 +408,7 @@ THREE.AMFParser.prototype._parseTextures = function ( node ){
 			//loader.load( url, onLoad, onProgress, onError )
 			var image = document.createElement( 'img' );
 			rawImg = 'data:image/png;base64,'+btoa(rawImg);
-			console.log(rawImg);
+			//console.log(rawImg);
 			
 			//
 			rawImg = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAALEgAACxIB0t1+/AAAAB90RVh0U29mdHdhcmUATWFjcm9tZWRpYSBGaXJld29ya3MgOLVo0ngAAAAWdEVYdENyZWF0aW9uIFRpbWUAMDUvMjgvMTGdjbKfAAABwklEQVQ4jdXUsWrjQBCA4X+11spikXAEUWdSuUjh5goXx1V5snu4kMLgyoEUgYNDhUHGsiNbCK200hWXFI7iOIEUd9Mu87E7MzsC6PjCcL4S+z/AwXuHQgg8T6GUi+MI2rbDmJqqMnTd26U/CXqeRxD4aO2ilIOUAms7jGkpipr9vqSqqo+BnudxcaEZjRRx7DIeK7SWFIUlSQxpKhkMHLZbemgPFEIQBD6jkeL62mc2u2QyuSIMA/J8z+Pjb+bzNQ8P0DTtedDzFFq7xLHLbHbJzc0PptPv+H5EWWYsl3fALZvNirK05LnCGHMaVOpvzcZjxWRy9Yx9A2J8P2U6hSRJuL/fsFoZhsNjsDc2jiOQUqC1JAwDfD8CYkA/oxFhGKC1REqB44jj/Ndg23ZY21EUljzfU5YZkAIFkFKWGXm+pygs1nbUdXOUL4Gfr5vi+wohBFFk0VoQRQNcN6Msf7Fc3rFYLFksnsiymu22oG3b0zWsKkNR1KSpZD5fA7ckSdLrcprWHA6Gpjm+oeCNbXN+Dmt2O8N6/YS19jz4gp76KYeDYbc79LB3wZdQSjEcKhxHUNcNVVX3nvkp8LPx7+/DP92w3rYV8ocfAAAAAElFTkSuQmCC';
@@ -371,7 +418,7 @@ THREE.AMFParser.prototype._parseTextures = function ( node ){
 			texture.sourceFile = '';
 			texture.needsUpdate = true;
 
-			console.log("loaded texture");
+			//console.log("loaded texture");
 			var textureId = textureData.attributes.getNamedItem("id").nodeValue;
 			var textureType = textureData.attributes.getNamedItem("type").nodeValue;
 			var textureTiling= textureData.attributes.getNamedItem("tiled").nodeValue
@@ -393,7 +440,7 @@ THREE.AMFParser.prototype._parseMaterials = function ( node ){
 			var materialId = materialData.attributes.getNamedItem("id").nodeValue;
 			var materialMeta = parseMetaData( materialData )
 			var materialColor = parseColor(materialData);
-			console.log("material id", materialId, "color",materialColor );
+			//console.log("material id", materialId, "color",materialColor );
 			materials[materialId] = {color:materialColor}
 		}
 	}
@@ -424,7 +471,7 @@ THREE.AMFParser.prototype._parseConstellation = function ( root, meshes ){
 			
 					var position = parseVector3(instanceData, "delta");
 					var rotation = parseVector3(instanceData, "r");
-					console.log("target object",objectId, "position",position, "rotatation", rotation)
+					//console.log("target object",objectId, "position",position, "rotatation", rotation)
 					
 					var meshInstance = meshes[objectId].clone();
 					meshInstance.position.add(position);
@@ -609,4 +656,4 @@ function parseMetaData( node )
 		return normals;
 	}
 
-module.exports = THREE.AMFParser;
+if (isNode) module.exports = THREE.AMFParser;

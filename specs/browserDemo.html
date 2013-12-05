@@ -1,0 +1,109 @@
+<html>
+  <head>
+    <title>UltiViewer example</title>
+       <script type="text/javascript" src="three.min.js"></script>
+      <script type="text/javascript" src="../jszip.js"></script>
+      <script type="text/javascript" src="../jszip-load.js"></script>
+      <script type="text/javascript" src="../jszip-inflate.js"></script>
+
+      <script src="../AMFParser.js"></script>
+  </head>
+<body>
+
+  <script>
+
+    function zipTest(){
+       console.log("done fetching data : unzipping ...");
+      var data = this.response || this.responseText;
+      //getFileType(data);
+      // read the content of the file with JSZip
+
+      try
+      {
+        var zip = new JSZip(data);
+        //console.log("zip",zip)
+        for(var entryName in zip.files)
+        {
+          var entry = zip.files[entryName];
+          if( entry._data !== null && entry !== undefined)
+          {
+            console.log("entry",entry._data);
+
+            console.log(entry);
+            var rawData = entry.asText()
+            console.log("rawData",rawData); 
+
+          }
+        }
+      }
+      catch(error)
+      {
+        console.log("failed to load zip:",error);
+        
+        var text = ensureString(data);
+        console.log("data",text.slice(0,60));
+      }
+    }
+
+  ensureString = function (buf) {
+
+	  if (typeof buf !== "string"){
+		  var array_buffer = new Uint8Array(buf);
+		  var str = '';
+		  for(var i = 0; i < buf.byteLength; i++) {
+			  str += String.fromCharCode(array_buffer[i]); // implicitly assumes little-endian
+		  }
+		  return str;
+	  } else {
+		  return buf;
+	  }
+
+  };
+
+    function getFileType(buffer)
+    {
+      var int32View = new Int32Array(buffer);
+      console.log("lkj")
+      switch(int32View[0]) {
+          case 1196314761: 
+              file.verified_type = "image/png";
+              break;
+          case 944130375:
+              file.verified_type = "image/gif";
+              break;
+          case 544099650:
+              file.verified_type = "image/bmp";
+              break;
+          case -520103681:
+              file.verified_type = "image/jpg";
+              break;
+          default:
+ 							file.verified_type = "unknown";
+              break;
+      }
+    }
+
+    function displayData()
+    {
+        var data = this.response || this.responseText;
+        var parser = new THREE.AMFParser();
+        var text = parser.parse(data);
+        console.log("data", text);//text.slice(0,60));
+    }
+
+    function fetchData(uri)
+    {
+      var oReq = new XMLHttpRequest();
+      oReq.responseType = "arraybuffer";
+      oReq.onload = displayData;//zipTest;
+      oReq.open("get", uri, true);
+      oReq.send();
+
+    }
+   
+      fetchData("stapel_dual.amf");
+      fetchData("Rook.amf");
+
+  </script>  
+</body>
+</html>
