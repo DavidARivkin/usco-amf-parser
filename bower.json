@@ -9,6 +9,7 @@
     "index.js",
     "jszip-load.js",
     "jszip-inflate.js",
-    "jszip.js"
+    "jszip.js",
+    "specs/"
   ]
 }
