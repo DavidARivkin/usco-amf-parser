@@ -9,7 +9,8 @@
   "main": "AMFParser.js",
   "dependencies": {
     "jszip": "~0.2.1",
-    "xmldom": "~0.1.16"
+    "xmldom": "~0.1.16",
+    "sax": "~0.5.7"
   },
   "devDependencies": {
     "jasmine-node": "",

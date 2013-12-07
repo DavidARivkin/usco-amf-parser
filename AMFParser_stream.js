@@ -22,7 +22,7 @@
  * 	loader.load( './models/amf/slotted_disk.amf' );
  */
 
-//TODO: add magic number detection to determine if file is a zip file or not
+//TODO???: add magic number detection to determine if file is a zip file or not
 //see here : http://en.wikipedia.org/wiki/List_of_file_signatures
 
 var isNode = 
@@ -45,22 +45,121 @@ THREE.AMFParser.prototype = {
 
 };
 
-THREE.AMFParser.prototype.parse = function (data) {
+THREE.AMFParser.prototype.parse = function(data)
+{
+
+  /*if( root.nodeName !== "amf")
+	{
+		throw("Unvalid AMF document, should have a root node called 'amf'");
+	}*/
 
   var data = this.unpack(data);
 
-  //big question : should we be using something more like the COLLADA loader ??
-	var xmlDoc = this._parseXML( data );
-  return;
-	var root = xmlDoc.documentElement;
-	if( root.nodeName !== "amf")
-	{
-		throw("Unvalid AMF document, should have a root node called 'amf'");
-	}
+  var sax = require("sax"),
+  strict = true, // set to false for html-mode
+  parser = sax.parser(strict);
 
-	return this._parseObjects(root);
-		
-};
+  //various data 
+  var unit = null;
+  var version = null;
+
+  var currentTag = null;
+  var objects = [];
+  
+  var meshes = {};//temporary storage
+	
+	//this.textures = this._parseTextures( root );
+	//this.materials = this._parseMaterials( root ); 
+
+  ///
+
+  parser.onerror = function (e) {
+    // an error happened.
+    console.log("parser error")
+  };
+  parser.ontext = function (t) {
+    // got some text.  t is the string of text.
+    //console.log("text",t)
+  };
+  parser.onclosetag = function (tag) {
+    //console.log("closing tag" ,tag)
+    if (currentTag && currentTag.parent) {
+      var p = currentTag.parent
+      delete currentTag.parent
+      currentTag = p
+    }
+    //console.log("parent",currentTag.parent.name)
+
+  }
+  parser.onopentag = function (tag) {
+    // opened a tag.  node has "name" and "attributes"
+    tag.parent = currentTag;
+    tag.children = [];
+    tag.parent && tag.parent.children.push(tag);
+    currentTag = tag;
+  
+    //console.log("opentag",tag)
+    switch(tag.name)
+    {
+      case 'amf':
+        unit = tag.attributes['unit'];
+      break;
+      case 'object':
+        currentObject = new THREE.Mesh();
+        currentObject._id = tag.attributes["id"] || null;
+        /*if('name' in metadata)
+		    {
+			    currentMesh.name = metadata.name;
+		    }*/
+        //objects
+      break;
+      case 'metadata':
+      break;
+      case 'mesh':
+        currentGeometry = new THREE.Geometry();
+      break;
+
+      case 'vertices':
+      break;
+
+      case 'vertex':
+      break;
+      case 'coordinates':
+        currentVertex = new THREE.Vector3();
+      break;
+      case 'x':
+      break;
+      case 'y':
+      break;
+      case 'z':
+      break;
+    }
+  
+  };
+  parser.onattribute = function (attr) {
+    // an attribute.  attr has "name" and "value"
+    //console.log("attribute",attr)
+  };
+  parser.ontext = function (text) {
+    if (currentTag && currentTag.parent)
+    {
+      console.log("text",text, currentTag.parent.name)
+        var value = parseFloat(text);
+        console.log("value",value)
+    }
+
+  }
+
+
+  parser.onend = function () {
+    // parser stream is done, and ready to have more stuff written to it.
+    console.log("THE END")
+  };
+  parser.write(data).close();
+
+  console.log("unit",unit);
+}
+
 
 THREE.AMFParser.prototype.unpack = function( data )
 {
@@ -72,10 +171,8 @@ THREE.AMFParser.prototype.unpack = function( data )
       var entry = zip.files[entryName];
       if( entry._data !== null && entry !== undefined)
       {
-        //console.log(entry);
         var rawData = entry.asText()
         return rawData;
-        //console.log("rawData",rawData); 
       }
    }
   }
@@ -84,38 +181,18 @@ THREE.AMFParser.prototype.unpack = function( data )
      return this.ensureString(data);
   }
 
-
-  //TODO: unpack zip data to xml
   //1F 9D
   //1F A0
   //50 4B 03 04, 50 4B 05 06 (empty archive) or 50 4B 07 08 (spanned archive)
 
   //TODO: get binary see http://stackoverflow.com/questions/327685/is-there-a-way-to-read-binary-data-in-javascript
-  //data
-  /*
-  var buffer = reader.result;
-      var int32View = new Int32Array(buffer);
-      switch(int32View[0]) {
-          case 1196314761: 
-              file.verified_type = "image/png";
-              break;
-          case 944130375:
-              file.verified_type = "image/gif";
-              break;
-          case 544099650:
-              file.verified_type = "image/bmp";
-              break;
-          case -520103681:
-              file.verified_type = "image/jpg";
-              break;
-          default:
- 							file.verified_type = "unknown";
-              break;
-      }
-		};*/
-
 }
 
+
+THREE.AMFParser.prototype.createVertex = function(data)
+{
+	
+}
 
 THREE.AMFParser.prototype.ensureString = function (buf) {
 
@@ -129,7 +206,6 @@ THREE.AMFParser.prototype.ensureString = function (buf) {
 	} else {
 		return buf;
 	}
-
 };
 
 THREE.AMFParser.prototype.ensureBinary = function (buf) {
@@ -508,45 +584,6 @@ THREE.AMFParser.prototype._generateScene = function(root, meshes){
 	return scene;
 }
 
-THREE.AMFParser.prototype._parseXML = function (xmlStr) {
-
-	//from http://stackoverflow.com/questions/649614/xml-parsing-of-a-variable-string-in-javascript
-	var parseXml;
-
-	if (typeof window !== 'undefined') 
-	{
-		if (typeof window.DOMParser != "undefined") {
-	    	parseXml = function(xmlStr) {
-			return ( new window.DOMParser() ).parseFromString(xmlStr, "text/xml");
-	    };
-		} else if (typeof window.ActiveXObject != "undefined" &&
-	       new window.ActiveXObject("Microsoft.XMLDOM")) 
-	    {
-	    	parseXml = function(xmlStr) {
-			var xmlDoc = new window.ActiveXObject("Microsoft.XMLDOM");
-			xmlDoc.async = "false";
-			xmlDoc.loadXML(xmlStr);
-			return xmlDoc;
-	    };
-	} else {
-	    throw new Error("No XML parser found");
-		}
-	}
-	else
-	{
-		//console.log("running nodejs")
-		//console.log("raw data",xmlStr)
-		DOMParser = require('xmldom').DOMParser;
-		var xmlDoc = new DOMParser().parseFromString(xmlStr, "text/xml");
-		//console.log("gne", xmlDoc);
-		return xmlDoc;
-	}
-	
-
-	return parseXml(xmlStr);
-
-}
-
 
 function parseMetaData( node )
 	{
@@ -565,7 +602,31 @@ function parseMetaData( node )
 		return result;
 	}
 
-	function parseTagText( node , name, toType , defaultValue)
+  function parseText( value , name, toType , defaultValue)
+	{
+		defaultValue = defaultValue || null;
+
+		if( value !== null && value !== undefined )
+		{
+			switch(toType)
+			{
+				case "float":
+					value = parseFloat(value);
+				break;
+			
+				case "int":
+					value = parseInt(value);
+				//default:
+			}
+		}
+		else if (defaultValue !== null)
+		{
+			value = defaultValue;
+		}
+		return value;
+	}
+
+	function parseTagText_old( node , name, toType , defaultValue)
 	{
 		defaultValue = defaultValue || null;
 		
@@ -616,9 +677,9 @@ function parseMetaData( node )
 	{
 		var coords = null;
 		
-		var x = parseTagText( node , prefix+"x", "float") || 0;
-		var y = parseTagText( node , prefix+"y", "float") || 0;
-		var z = parseTagText( node , prefix+"z", "float") || 0;
+		var x = parseText( node , prefix+"x", "float") || 0;
+		var y = parseText( node , prefix+"y", "float") || 0;
+		var z = parseText( node , prefix+"z", "float") || 0;
 		var coords = new THREE.Vector3(x,y,z);
 		return coords;
 	}
