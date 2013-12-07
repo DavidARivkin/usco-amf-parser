@@ -21,13 +21,20 @@ describe("AMF parser tests", function() {
     expect(parsedAmf instanceof THREE.Object3D).toBe(true);
     expect(parsedAmf.children[0].name).toEqual("Default");
     expect(parsedAmf.children[0].geometry.vertices.length).toEqual(1843);
-  });*/
+  });
 
   it("can parse basic + vertex colors uncompressed amf files(streaming)", function() {
     data = fs.readFileSync("specs/data/VertColors.amf",'binary')
     parsedAmf = sParser.parse(data);
     expect(parsedAmf instanceof THREE.Object3D).toBe(true);
-    expect(parsedAmf.children[0].geometry.vertices.length).toEqual(564);
+    expect(parsedAmf.children[0].geometry.vertices.length).toEqual(8);
+  });*/
+
+   it("can parse basic + vertex normals uncompressed amf files(streaming)", function() {
+    data = fs.readFileSync("specs/data/Sphere20Face.amf",'binary')
+    parsedAmf = sParser.parse(data);
+    expect(parsedAmf instanceof THREE.Object3D).toBe(true);
+    expect(parsedAmf.children[0].geometry.vertices.length).toEqual(8);
   });
 
   /*

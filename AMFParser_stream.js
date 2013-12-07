@@ -25,6 +25,17 @@
 //TODO???: add magic number detection to determine if file is a zip file or not
 //see here : http://en.wikipedia.org/wiki/List_of_file_signatures
 
+/*AMF SPECS breakdown:
+* 1..N Objects
+*--->1..1 Mesh 
+*----->1..1 Vertices
+*------->1..N Vertex
+*--------->1..1 Coordinates
+*--------->1..1 Color
+*--------->1..1 Normal
+*----->1..N Volumes (THREE.js geometry is at this level)
+*/
+
 var isNode = 
     typeof global !== "undefined" && 
     {}.toString.call(global) == '[object global]';
@@ -54,23 +65,34 @@ THREE.AMFParser.prototype.parse = function(data)
 	}*/
 
   var data = this.unpack(data);
+  var rootObject = new THREE.Object3D();//TODO: change storage of data : ie don't put everything under a single object
+  rootObject.name = "rootScene";
+
 
   var sax = require("sax"),
   strict = true, // set to false for html-mode
-  parser = sax.parser(strict);
+  parser = sax.parser(strict,{trim:true});
 
   //various data 
   var unit = null;
   var version = null;
 
-  var currentTag = null;
   var objects = [];
   
-  var meshes = {};//temporary storage
+  var meshes = [];//temporary storage
 	
 	//this.textures = this._parseTextures( root );
 	//this.materials = this._parseMaterials( root ); 
+  
+  var currentTag = null;
+  var currentItem = null;
 
+  var currentColor = null;
+  var currentVertex = null;
+
+  var currentGeometry=null;
+  
+  var currentVolume = null;
   ///
 
   parser.onerror = function (e) {
@@ -83,55 +105,125 @@ THREE.AMFParser.prototype.parse = function(data)
   };
   parser.onclosetag = function (tag) {
     //console.log("closing tag" ,tag)
+    //console.log("parent",currentTag.parent.name)
+    if(currentTag.name == "object")
+    {
+      meshes.push(currentObject);
+      rootObject.add(currentObject);
+      currentObject = null;
+    }
+    if(currentTag.name == "mesh")
+    {
+        /*currentObject.geometry = currentGeometry;
+        console.log("currentGeometry",JSON.stringify(currentGeometry))
+        currentGeometry = null;*/
+    }
+
+    //lower level
+    if(currentTag.name == "coordinates")
+    {
+      
+      var x = parseText( currentTag.x.value , "x", "float" , 0.0);
+      var y = parseText( currentTag.y.value , "y", "float" , 0.0);
+      var z = parseText( currentTag.z.value , "z", "float" , 0.0);
+      var vertexCoords = new THREE.Vector3(x,y,z);
+      //currentGeometry.vertices.push(vertexCoords); 
+      currentObject._attributes["position"].push( vertexCoords );
+    }
+
+    if(currentTag.name == "normal")
+    {
+      var x = parseText( currentTag.nx.value , "x", "float" , 1.0);
+      var y = parseText( currentTag.ny.value , "y", "float" , 1.0);
+      var z = parseText( currentTag.nz.value , "z", "float" , 1.0);
+      var vertexNormal = new THREE.Vector3(x,y,z);
+      console.log("vertex normals",vertexNormal)
+      currentObject._attributes["normal"].push( vertexNormal );
+    }
+
+    if(currentTag.name == "color")
+    {
+      
+      var r = parseText( currentTag.r.value , "r", "float" , 0.0);
+      var g = parseText( currentTag.g.value , "g", "float" , 0.0);
+      var b = parseText( currentTag.b.value , "b", "float" , 0.0);
+      var a = parseText( currentTag.a.value , "a", "float" , 1.0);
+      var vertexColor = new THREE.Color().setRGB( r, g , b );
+      currentObject._attributes["color"].push( vertexColor);
+    }
+
+
+    //per volume data (one volume == one three.js mesh)
+    if(currentTag.name == "volume")
+    {
+        console.log("volume");
+        currentVolume = null;
+    }
+
+    if(currentTag.name == "triangle")
+    {
+      
+      var v1 = parseText( currentTag.v1.value , "v", "int" , 0);
+      var v2 = parseText( currentTag.v2.value , "v", "int" , 0);
+      var v3 = parseText( currentTag.v3.value , "v", "int" , 0);
+
+      //TODO: handle default values 
+      var colorData = currentObject._attributes["color"];
+      var colors = [(colorData[v1] || this.defaultColor),colorData[v2],colorData[v3]];
+
+      var normalData = currentObject._attributes["normal"];
+      var normals = [normalData[v1],normalData[v2],normalData[v3]];
+
+      var face = new THREE.Face3( v1, v2, v3 , normals, colors);
+    
+      console.log("face",face);
+      //a, b, c, normal, color, materialIndex
+      currentVolume.faces.push(face);
+    }
+
     if (currentTag && currentTag.parent) {
       var p = currentTag.parent
       delete currentTag.parent
       currentTag = p
     }
-    //console.log("parent",currentTag.parent.name)
 
   }
   parser.onopentag = function (tag) {
     // opened a tag.  node has "name" and "attributes"
     tag.parent = currentTag;
-    tag.children = [];
-    tag.parent && tag.parent.children.push(tag);
+    //tag.children = [];
+    //tag.parent && tag.parent.children.push(tag);
     currentTag = tag;
+
+    if(tag.parent) tag.parent[tag.name] = tag;
+    
   
     //console.log("opentag",tag)
     switch(tag.name)
     {
       case 'amf':
         unit = tag.attributes['unit'];
+        version = tag.attributes['version'];
       break;
       case 'object':
         currentObject = new THREE.Mesh();
         currentObject._id = tag.attributes["id"] || null;
-        /*if('name' in metadata)
-		    {
-			    currentMesh.name = metadata.name;
-		    }*/
+
+        //temp storage:
+        currentObject._attributes =  {};
+        currentObject._attributes["position"] = [];
+        currentObject._attributes["normal"] = [];
+        currentObject._attributes["color"] = [];
         //objects
       break;
+      case 'volume':
+        currentVolume = new THREE.Geometry();
+      break;
       case 'metadata':
+        console.log("metadata",tag)
       break;
       case 'mesh':
         currentGeometry = new THREE.Geometry();
-      break;
-
-      case 'vertices':
-      break;
-
-      case 'vertex':
-      break;
-      case 'coordinates':
-        currentVertex = new THREE.Vector3();
-      break;
-      case 'x':
-      break;
-      case 'y':
-      break;
-      case 'z':
       break;
     }
   
@@ -141,23 +233,23 @@ THREE.AMFParser.prototype.parse = function(data)
     //console.log("attribute",attr)
   };
   parser.ontext = function (text) {
+    //if (currentTag) currentTag.children.push(text)
+    if (currentTag) currentTag.value = text
     if (currentTag && currentTag.parent)
     {
-      console.log("text",text, currentTag.parent.name)
-        var value = parseFloat(text);
-        console.log("value",value)
     }
-
   }
 
 
   parser.onend = function () {
     // parser stream is done, and ready to have more stuff written to it.
-    console.log("THE END")
+    //console.log("THE END")
   };
   parser.write(data).close();
 
-  console.log("unit",unit);
+  console.log("unit",unit,"version",version);
+  //console.log("meshes",rootObject);
+  return rootObject;
 }
 
 
@@ -208,19 +300,6 @@ THREE.AMFParser.prototype.ensureString = function (buf) {
 	}
 };
 
-THREE.AMFParser.prototype.ensureBinary = function (buf) {
-
-	if (typeof buf === "string"){
-		var array_buffer = new Uint8Array(buf.length);
-		for(var i = 0; i < buf.length; i++) {
-			array_buffer[i] = buf.charCodeAt(i) & 0xff; // implicitly assumes little-endian
-		}
-		return array_buffer.buffer || array_buffer;
-	} else {
-		return buf;
-	}
-
-};
 
 THREE.AMFParser.prototype._parseObjects = function ( root ){
 
