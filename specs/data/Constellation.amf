@@ -457,9 +457,9 @@
     <rz>90</rz>
   </instance>
   <instance objectid="2">
-    <deltax>-10</deltay>
+    <deltax>-10</deltax>
     <deltay>10</deltay>
-    <rz>180</rz>
+     <rz>180</rz>
   </instance>
 </constellation>
 </amf>

@@ -36,6 +36,17 @@
 *----->1..N Volumes (THREE.js geometry is at this level)
 */
 
+/*Algorithm
+For each Object in amf
+  ** CurrentMesh = new THREE.Mesh();
+  grab vertex attributes (position, normal, color)
+  ** CurrentGeomtry = new THREE.Geometry()
+  grab volumes
+    for each Volume
+      grab triangles (vertex indices)
+      add data to geometry
+*/
+
 var isNode = 
     typeof global !== "undefined" && 
     {}.toString.call(global) == '[object global]';
@@ -85,7 +96,7 @@ THREE.AMFParser.prototype.parse = function(data)
 	//this.materials = this._parseMaterials( root ); 
   
   var currentTag = null;
-  var currentItem = null;
+  var currentItem = null;//pointer to currently active item/tag etc
 
   var currentColor = null;
   var currentVertex = null;
@@ -110,24 +121,19 @@ THREE.AMFParser.prototype.parse = function(data)
     {
       meshes.push(currentObject);
       rootObject.add(currentObject);
+      //console.log("finished Object / THREE.Mesh",currentObject)
       currentObject = null;
-    }
-    if(currentTag.name == "mesh")
-    {
-        /*currentObject.geometry = currentGeometry;
-        console.log("currentGeometry",JSON.stringify(currentGeometry))
-        currentGeometry = null;*/
+      
     }
 
     //lower level
     if(currentTag.name == "coordinates")
     {
-      
       var x = parseText( currentTag.x.value , "x", "float" , 0.0);
       var y = parseText( currentTag.y.value , "y", "float" , 0.0);
       var z = parseText( currentTag.z.value , "z", "float" , 0.0);
       var vertexCoords = new THREE.Vector3(x,y,z);
-      //currentGeometry.vertices.push(vertexCoords); 
+      currentObject.geometry.vertices.push(vertexCoords); 
       currentObject._attributes["position"].push( vertexCoords );
     }
 
@@ -137,13 +143,11 @@ THREE.AMFParser.prototype.parse = function(data)
       var y = parseText( currentTag.ny.value , "y", "float" , 1.0);
       var z = parseText( currentTag.nz.value , "z", "float" , 1.0);
       var vertexNormal = new THREE.Vector3(x,y,z);
-      console.log("vertex normals",vertexNormal)
       currentObject._attributes["normal"].push( vertexNormal );
     }
 
     if(currentTag.name == "color")
     {
-      
       var r = parseText( currentTag.r.value , "r", "float" , 0.0);
       var g = parseText( currentTag.g.value , "g", "float" , 0.0);
       var b = parseText( currentTag.b.value , "b", "float" , 0.0);
@@ -152,12 +156,20 @@ THREE.AMFParser.prototype.parse = function(data)
       currentObject._attributes["color"].push( vertexColor);
     }
 
+    if(currentTag.name == "metadata")
+    {
+      //console.log("meta",currentTag.attributes["type"],currentTag.value);
+
+      var type = currentTag.attributes["type"];
+      currentItem[type] = currentTag.value;
+      //need to have a generic "current item "?
+      
+    }
 
     //per volume data (one volume == one three.js mesh)
     if(currentTag.name == "volume")
     {
-        console.log("volume");
-        currentVolume = null;
+        //console.log("volume");
     }
 
     if(currentTag.name == "triangle")
@@ -176,9 +188,9 @@ THREE.AMFParser.prototype.parse = function(data)
 
       var face = new THREE.Face3( v1, v2, v3 , normals, colors);
     
-      console.log("face",face);
+      //console.log("face",face);
       //a, b, c, normal, color, materialIndex
-      currentVolume.faces.push(face);
+      currentObject.geometry.faces.push(face);
     }
 
     if (currentTag && currentTag.parent) {
@@ -194,36 +206,31 @@ THREE.AMFParser.prototype.parse = function(data)
     //tag.children = [];
     //tag.parent && tag.parent.children.push(tag);
     currentTag = tag;
-
     if(tag.parent) tag.parent[tag.name] = tag;
-    
   
-    //console.log("opentag",tag)
     switch(tag.name)
     {
       case 'amf':
         unit = tag.attributes['unit'];
         version = tag.attributes['version'];
+        currentItem = rootObject;
       break;
       case 'object':
         currentObject = new THREE.Mesh();
         currentObject._id = tag.attributes["id"] || null;
+        currentObject.geometry = new THREE.Geometry();//TODO: does this not get auto created ???
 
         //temp storage:
         currentObject._attributes =  {};
         currentObject._attributes["position"] = [];
         currentObject._attributes["normal"] = [];
         currentObject._attributes["color"] = [];
-        //objects
+
+        currentItem = currentObject;
+
       break;
       case 'volume':
-        currentVolume = new THREE.Geometry();
-      break;
-      case 'metadata':
-        console.log("metadata",tag)
-      break;
-      case 'mesh':
-        currentGeometry = new THREE.Geometry();
+        //currentVolume = new THREE.Geometry();
       break;
     }
   
