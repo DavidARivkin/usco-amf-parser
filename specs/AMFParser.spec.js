@@ -24,7 +24,7 @@ describe("AMF parser tests", function() {
   });
   */
   //STREAMING parser
-  
+  /*
   it("can parse uncompressed amf files with vertex colors (streaming)", function() {
     data = fs.readFileSync("specs/data/VertColors.amf",'binary')
     parsedAmf = sParser.parse(data);
@@ -47,6 +47,14 @@ describe("AMF parser tests", function() {
     expect(parsedAmf instanceof THREE.Object3D).toBe(true);
     expect(parsedAmf.children[0].geometry.vertices.length).toEqual(8);
     expect(parsedAmf.children[0].geometry.faces.length).toEqual(12);
+  });
+*/
+  it("can parse uncompressed, larger amf files  (streaming)", function() {
+    data = fs.readFileSync("specs/data/Rook.amf",'binary')
+    parsedAmf = sParser.parse(data);
+    expect(parsedAmf instanceof THREE.Object3D).toBe(true);
+    expect(parsedAmf.children[0].geometry.vertices.length).toEqual(1843);
+    expect(parsedAmf.children[0].geometry.faces.length).toEqual(3682);
   });
 
   /*

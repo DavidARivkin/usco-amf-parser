@@ -54,6 +54,8 @@ var isNode =
 
 if(isNode) THREE = require( 'three' ); 
 if(isNode) JSZip = require( 'jszip' );
+if(isNode) var sax = require( 'sax' );
+
 
 THREE.AMFParser = function () {
 	this.defaultColor = new THREE.Color( "#cccccc" );
@@ -79,8 +81,6 @@ THREE.AMFParser.prototype.parse = function(data)
   var rootObject = new THREE.Object3D();//TODO: change storage of data : ie don't put everything under a single object
   rootObject.name = "rootScene";
 
-
-  var sax = require("sax"),
   strict = true, // set to false for html-mode
   parser = sax.parser(strict,{trim:true});
 
@@ -104,8 +104,13 @@ THREE.AMFParser.prototype.parse = function(data)
   var currentGeometry=null;
   
   var currentVolume = null;
-  ///
+  //copy settings to local scope
+  var defaultColor = this.defaultColor;
+	var defaultVertexNormal = this.defaultVertexNormal;
+	var recomputeNormals = this.recomputeNormals;
 
+
+  //
   parser.onerror = function (e) {
     // an error happened.
     console.log("parser error")
@@ -121,6 +126,26 @@ THREE.AMFParser.prototype.parse = function(data)
     {
       meshes.push(currentObject);
       rootObject.add(currentObject);
+      console.log("this",recomputeNormals)
+      if(recomputeNormals)
+		  {
+			  //TODO: only do this, if no normals were specified???
+			  currentObject.geometry.computeFaceNormals();
+			  currentObject.geometry.computeVertexNormals();
+		  }
+		  currentObject.geometry.computeBoundingBox();
+		  currentObject.geometry.computeBoundingSphere();
+
+      //var color = volumeColor !== null ? volumeColor : new THREE.Color("#ffffff");
+      var color = new THREE.Color("#ffffff");
+
+		  //console.log("color", color);
+		  var currentMaterial = new THREE.MeshLambertMaterial(
+		  { 	color: color,
+			  vertexColors: THREE.VertexColors,
+			  shading: THREE.FlatShading
+		  } );
+      currentObject.material = currentMaterial;
       //console.log("finished Object / THREE.Mesh",currentObject)
       currentObject = null;
       
@@ -160,10 +185,8 @@ THREE.AMFParser.prototype.parse = function(data)
     {
       //console.log("meta",currentTag.attributes["type"],currentTag.value);
 
-      var type = currentTag.attributes["type"];
-      currentItem[type] = currentTag.value;
-      //need to have a generic "current item "?
-      
+      //var type = currentTag.attributes["type"];
+      //currentItem[type] = currentTag.value;
     }
 
     //per volume data (one volume == one three.js mesh)
@@ -181,10 +204,24 @@ THREE.AMFParser.prototype.parse = function(data)
 
       //TODO: handle default values 
       var colorData = currentObject._attributes["color"];
-      var colors = [(colorData[v1] || this.defaultColor),colorData[v2],colorData[v3]];
-
+      if(colorData.length>0)
+      {
+        var colors = [(colorData[v1] || this.defaultColor),colorData[v2],colorData[v3]];
+      }
+      else
+      {
+        var colors = [defaultColor,defaultColor, defaultColor];
+      }
       var normalData = currentObject._attributes["normal"];
-      var normals = [normalData[v1],normalData[v2],normalData[v3]];
+      if(normalData.length>0)
+      {
+        var normals = [normalData[v1],normalData[v2],normalData[v3]];
+      }
+      else
+      {
+        var normals = [defaultVertexNormal,defaultVertexNormal, defaultVertexNormal];
+      }
+      
 
       var face = new THREE.Face3( v1, v2, v3 , normals, colors);
     
