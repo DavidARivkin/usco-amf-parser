@@ -71,11 +71,11 @@ THREE.AMFParser.prototype = {
 
 THREE.AMFParser.prototype.parse = function(data)
 {
-
   /*if( root.nodeName !== "amf")
 	{
 		throw("Unvalid AMF document, should have a root node called 'amf'");
 	}*/
+  var startTime = new Date();
 
   var data = this.unpack(data);
   var rootObject = new THREE.Object3D();//TODO: change storage of data : ie don't put everything under a single object
@@ -109,7 +109,8 @@ THREE.AMFParser.prototype.parse = function(data)
 	var defaultVertexNormal = this.defaultVertexNormal;
 	var recomputeNormals = this.recomputeNormals;
 
-
+  //
+  var currentFaceData = null;
   //
   parser.onerror = function (e) {
     // an error happened.
@@ -126,7 +127,6 @@ THREE.AMFParser.prototype.parse = function(data)
     {
       meshes.push(currentObject);
       rootObject.add(currentObject);
-      console.log("this",recomputeNormals)
       if(recomputeNormals)
 		  {
 			  //TODO: only do this, if no normals were specified???
@@ -142,7 +142,8 @@ THREE.AMFParser.prototype.parse = function(data)
 		  //console.log("color", color);
 		  var currentMaterial = new THREE.MeshLambertMaterial(
 		  { 	color: color,
-			  vertexColors: THREE.VertexColors,
+			  //vertexColors: THREE.VertexColors,
+        vertexColors: THREE.FaceColors,
 			  shading: THREE.FlatShading
 		  } );
       currentObject.material = currentMaterial;
@@ -173,18 +174,22 @@ THREE.AMFParser.prototype.parse = function(data)
 
     if(currentTag.name == "color")
     {
+      //WARNING !! color can be used not only inside objects but also materials etc
       var r = parseText( currentTag.r.value , "r", "float" , 0.0);
       var g = parseText( currentTag.g.value , "g", "float" , 0.0);
       var b = parseText( currentTag.b.value , "b", "float" , 0.0);
-      var a = parseText( currentTag.a.value , "a", "float" , 1.0);
+      //var a = parseText( currentTag.a.value , "a", "float" , 1.0);
       var vertexColor = new THREE.Color().setRGB( r, g , b );
-      currentObject._attributes["color"].push( vertexColor);
+
+      console.log("parent",currentTag.parent.name);
+
+      if(currentFaceData) currentFaceData["color"] = vertexColor;
+      if(currentObject && (!currentFaceData)) currentObject._attributes["color"].push( vertexColor);
     }
 
     if(currentTag.name == "metadata")
     {
       //console.log("meta",currentTag.attributes["type"],currentTag.value);
-
       //var type = currentTag.attributes["type"];
       //currentItem[type] = currentTag.value;
     }
@@ -197,16 +202,15 @@ THREE.AMFParser.prototype.parse = function(data)
 
     if(currentTag.name == "triangle")
     {
-      
       var v1 = parseText( currentTag.v1.value , "v", "int" , 0);
       var v2 = parseText( currentTag.v2.value , "v", "int" , 0);
       var v3 = parseText( currentTag.v3.value , "v", "int" , 0);
 
-      //TODO: handle default values 
       var colorData = currentObject._attributes["color"];
       if(colorData.length>0)
       {
-        var colors = [(colorData[v1] || this.defaultColor),colorData[v2],colorData[v3]];
+        var colors = [colorData[v1] ,colorData[v2], colorData[v3]];
+        console.log("colors",colors)
       }
       else
       {
@@ -221,12 +225,16 @@ THREE.AMFParser.prototype.parse = function(data)
       {
         var normals = [defaultVertexNormal,defaultVertexNormal, defaultVertexNormal];
       }
-      
 
       var face = new THREE.Face3( v1, v2, v3 , normals, colors);
-    
-      //console.log("face",face);
+
+      console.log("face color",currentFaceData["color"])
+      if('color' in currentFaceData) face.color.setRGB( currentFaceData["color"].r, currentFaceData["color"].g, currentFaceData["color"].b );
       //a, b, c, normal, color, materialIndex
+      
+      //TODO: fix hack
+      currentFaceData = null;
+  
       currentObject.geometry.faces.push(face);
     }
 
@@ -264,35 +272,39 @@ THREE.AMFParser.prototype.parse = function(data)
         currentObject._attributes["color"] = [];
 
         currentItem = currentObject;
-
       break;
       case 'volume':
         //currentVolume = new THREE.Geometry();
+      break;
+      case 'triangle':
+        currentFaceData = {}
+        //currentTriangle = 
+      break;
+
+      case 'material':
+        console.log("material",currentTag)
       break;
     }
   
   };
   parser.onattribute = function (attr) {
     // an attribute.  attr has "name" and "value"
-    //console.log("attribute",attr)
+    if(currentItem) currentItem[attr.name]= attr.value;
   };
   parser.ontext = function (text) {
-    //if (currentTag) currentTag.children.push(text)
     if (currentTag) currentTag.value = text
-    if (currentTag && currentTag.parent)
-    {
-    }
   }
-
 
   parser.onend = function () {
     // parser stream is done, and ready to have more stuff written to it.
-    //console.log("THE END")
+    console.log("THE END")
   };
   parser.write(data).close();
 
   console.log("unit",unit,"version",version);
   //console.log("meshes",rootObject);
+  var seconds = Math.floor((new Date() - startTime) / 1000);
+  console.log("parsing time",seconds + "s");
   return rootObject;
 }
 
