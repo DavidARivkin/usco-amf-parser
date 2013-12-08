@@ -91,30 +91,38 @@ THREE.AMFParser.prototype.parse = function(data)
   var unit = null;
   var version = null;
 
-  var objects = [];
-  var meshes = [];//temporary storage
-  
   var currentTag = null;
   var currentItem = null;//pointer to currently active item/tag etc
 
+  //
   var currentColor = null;
   var currentVertex = null;
+
   var currentGeometry=null;
   var currentVolume = null;
   var currentMaterial = null;
   var currentFaceData = null;
-  //storage
-  //this.textures = this._parseTextures( root );
-	//this.materials = this._parseMaterials( root ); 
-  var materials = {};
+
+  //logical grouping
+  var currentConstellation = null;
+  var currentObjectInstance = null;
+
 
   //copy settings to local scope
   var defaultColor = this.defaultColor;
 	var defaultVertexNormal = this.defaultVertexNormal;
 	var recomputeNormals = this.recomputeNormals;
 
+   //storage / temporary storage
   //map amf object ids to our UUIDS
   var objectsIdMap = {};
+  var objects = [];
+
+  var meshes = {};
+  var materials = {};
+  //this.textures = this._parseTextures( root );
+	//this.materials = this._parseMaterials( root ); 
+
   //////////////
   var self = this;  
   //
@@ -164,15 +172,24 @@ THREE.AMFParser.prototype.parse = function(data)
       case 'metadata':
         currentMeta = {};
       break;
+      case 'constellation':
+        currentConstellation = new THREE.Object3D();
+        var id = tag.attributes["id"] || null;
+        if(id) currentConstellation._id = id;
+      break;
+      case 'instance':
+        currentObjectInstance = {};
+        var id = tag.attributes["objectid"] || null;
+        if(id) currentObjectInstance.id = id;
+      break;
     }
   };
   parser.onclosetag = function (tag) {
-    //console.log("parent",currentTag.parent.name)
     if(currentTag.name == "object")
     {
-      meshes.push(currentObject);
-      rootObject.add(currentObject);
       self._generateObject( currentObject );
+      meshes[currentObject._id] = currentObject;
+      rootObject.add(currentObject);
       currentObject = null;
     }
     //
@@ -191,8 +208,7 @@ THREE.AMFParser.prototype.parse = function(data)
     }
 
     if(currentTag.name == "color")
-    {
-      //WARNING !! color can be used not only inside objects but also materials etc
+    {//WARNING !! color can be used not only inside objects but also materials etc
       var color = parseColor(currentTag);
 
       if(currentMaterial) currentMaterial["color"] = color;
@@ -201,10 +217,7 @@ THREE.AMFParser.prototype.parse = function(data)
     }
 
     //per volume data (one volume == one three.js mesh)
-    if(currentTag.name == "volume")
-    {
-        //console.log("volume");
-    }
+    if(currentTag.name == "volume"){}
 
     if(currentTag.name == "triangle")
     {
@@ -216,7 +229,6 @@ THREE.AMFParser.prototype.parse = function(data)
       if(colorData.length>0)
       {
         var colors = [colorData[v1] ,colorData[v2], colorData[v3]];
-        //console.log("colors",colors)
       }
       else
       {
@@ -231,38 +243,54 @@ THREE.AMFParser.prototype.parse = function(data)
       {
         var normals = [defaultVertexNormal,defaultVertexNormal, defaultVertexNormal];
       }
-
       var face = new THREE.Face3( v1, v2, v3 , normals, colors);
-
       //console.log("face color",currentFaceData["color"])
       if('color' in currentFaceData) face.color.setRGB( currentFaceData["color"].r, currentFaceData["color"].g, currentFaceData["color"].b );
       //a, b, c, normal, color, materialIndex
       
       //TODO: fix hack
       currentFaceData = null;
-  
       currentObject.geometry.faces.push(face);
     }
     
     if(currentTag.name == "material")
     {
-        console.log("material",currentMaterial)
         materials[currentMaterial.id] = currentMaterial;
         currentMaterial = null;
      }
 
     if(currentTag.name == "metadata")
     {
-      //console.log("currentMeta",currentMeta)
       if( currentItem )
       {
         var varName = currentTag.attributes["type"].toLowerCase();
         currentItem[varName]= currentTag.value;
         //console.log("currentItem", currentItem)
       }
+      //console.log("currentMeta",currentMeta)
       currentMeta = null;
-      //var type = currentTag.attributes["type"];
     }
+
+    if(currentTag.name == "constellation")
+    {
+        rootObject = currentConstellation;//FIXME: this is a hack
+        currentConstellation = null;
+    }
+    if(currentTag.name == "instance")
+    {
+        var position = parseVector3(currentTag, "delta",0.0);
+        var rotation = parseVector3(currentTag, "r", 1.0);
+
+        var objectId= currentObjectInstance.id;
+        var meshInstance = meshes[objectId].clone();
+			  meshInstance.position.add(position);
+				meshInstance.rotation.set(rotation.x,rotation.y,rotation.z); 
+      
+        currentConstellation.add(meshInstance);
+        currentObjectInstance = null;
+        //console.log("closing instance",objectId, "posOffset",position,"rotOffset",rotation);
+    }
+
     currentItem = null;
     if (currentTag && currentTag.parent) {
       var p = currentTag.parent
@@ -278,7 +306,6 @@ THREE.AMFParser.prototype.parse = function(data)
   };
   parser.ontext = function (text) {
     if (currentTag) currentTag.value = text
-    //if (currentTag.parent) console.log("currentTag.parent",currentTag.parent)
   }
 
   parser.onerror = function(error)
@@ -300,7 +327,6 @@ THREE.AMFParser.prototype.parse = function(data)
   return rootObject;
 }
 
-
 THREE.AMFParser.prototype.unpack = function( data )
 {
   try
@@ -309,23 +335,10 @@ THREE.AMFParser.prototype.unpack = function( data )
     for(var entryName in zip.files)
     {
       var entry = zip.files[entryName];
-      if( entry._data !== null && entry !== undefined)
-      {
-        var rawData = entry.asText()
-        return rawData;
-      }
+      if( entry._data !== null && entry !== undefined) return entry.asText();
    }
   }
-    catch(error)
-  {
-     return this.ensureString(data);
-  }
-
-  //1F 9D
-  //1F A0
-  //50 4B 03 04, 50 4B 05 06 (empty archive) or 50 4B 07 08 (spanned archive)
-
-  //TODO: get binary see http://stackoverflow.com/questions/327685/is-there-a-way-to-read-binary-data-in-javascript
+  catch(error){return this.ensureString(data);}
 }
 
 THREE.AMFParser.prototype.ensureString = function (buf) {
@@ -368,7 +381,6 @@ THREE.AMFParser.prototype._generateObject = function( object )
 
 THREE.AMFParser.prototype._generateScene = function ( ){
   console.log("generating scene");
-
   // if there is constellation data, don't just add meshes to the scene, but use 
 	//the info from constellation to do so (additional transforms)
   return
@@ -384,8 +396,6 @@ THREE.AMFParser.prototype._generateScene = function ( ){
 	}
 	return scene;
 }
-
-
 
 THREE.AMFParser.prototype._parseMaterials = function ( node ){
 	console.log("gne")
@@ -404,46 +414,6 @@ THREE.AMFParser.prototype._parseMaterials = function ( node ){
 		}
 	}
 	return materials;
-}
-
-
-THREE.AMFParser.prototype._parseConstellation = function ( root, meshes ){
-	//parse constellation / scene data
-	var constellationData = root.getElementsByTagName("constellation"); 
-	var scene = null; 
-	if (constellationData !== undefined && constellationData.length!==0)
-	{
-		scene = new THREE.Object3D();
-		for (var j=0; j<constellationData.length; j++)
-		{
-			var constellationData = constellationData[ j ];
-			var constellationId = constellationData.attributes.getNamedItem("id").nodeValue;
-			
-			var instancesData = constellationData.getElementsByTagName("instance");
-
-			if (instancesData !== undefined)
-			{
-				for (var u=0; u<instancesData.length; u++)
-				{
-					var instanceData = instancesData[ u ];
-					var objectId = instanceData.attributes.getNamedItem("objectid").nodeValue;
-			
-					var position = parseVector3(instanceData, "delta");
-					var rotation = parseVector3(instanceData, "r");
-					//console.log("target object",objectId, "position",position, "rotatation", rotation)
-					
-					var meshInstance = meshes[objectId].clone();
-					meshInstance.position.add(position);
-					
-					meshInstance.rotation.set(rotation.x,rotation.y,rotation.z); 
-					
-					//we add current mesh to scene
-					scene.add(meshInstance);
-				}
-			}
-		}
-	}
-	return scene;
 }
 
   function parseText( value, toType , defaultValue)
@@ -488,9 +458,9 @@ THREE.AMFParser.prototype._parseConstellation = function ( root, meshes ){
     var prefix =  prefix || "" ;
     var defaultValue = defaultValue || 0.0;
 
-    var x = parseText( node[prefix+"x"].value, "float" , defaultValue);
-    var y = parseText( node[prefix+"y"].value, "float" , defaultValue);
-    var z = parseText( node[prefix+"z"].value, "float" , defaultValue);
+    var x = (prefix+"x" in node) ? parseText( node[prefix+"x"].value, "float" , defaultValue) : defaultValue;
+    var y = (prefix+"y" in node) ? parseText( node[prefix+"y"].value, "float" , defaultValue) : defaultValue;
+    var z = (prefix+"z" in node) ? parseText( node[prefix+"z"].value, "float" , defaultValue) : defaultValue;
     var coords = new THREE.Vector3(x,y,z);
 
 		return coords;
