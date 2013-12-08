@@ -113,6 +113,9 @@ THREE.AMFParser.prototype.parse = function(data)
 	var defaultVertexNormal = this.defaultVertexNormal;
 	var recomputeNormals = this.recomputeNormals;
 
+  //map amf object ids to our UUIDS
+  var objectsIdMap = {};
+  //////////////
   var self = this;  
   //
   parser.onopentag = function (tag) {
@@ -132,7 +135,9 @@ THREE.AMFParser.prototype.parse = function(data)
       break;
       case 'object':
         currentObject = new THREE.Mesh();
-        currentObject._id = tag.attributes["id"] || null;
+        var id = tag.attributes["id"] || null;
+        if(id) currentObject._id = id; objectsIdMap[id] = currentObject.uuid;
+
         currentObject.geometry = new THREE.Geometry();//TODO: does this not get auto created ???
         //temp storage:
         currentObject._attributes =  {};
@@ -151,6 +156,9 @@ THREE.AMFParser.prototype.parse = function(data)
       break;
       case 'material':
         currentMaterial = {};
+        var id = tag.attributes["id"] || null;
+        if(id) currentMaterial.id = id;
+
         currentItem = currentMaterial;
       break;
       case 'metadata':
@@ -167,8 +175,7 @@ THREE.AMFParser.prototype.parse = function(data)
       self._generateObject( currentObject );
       currentObject = null;
     }
-
-    //lower level
+    //
     if(currentTag.name == "coordinates")
     {
       var vertexCoords = parseVector3(currentTag);
@@ -240,6 +247,7 @@ THREE.AMFParser.prototype.parse = function(data)
     if(currentTag.name == "material")
     {
         console.log("material",currentMaterial)
+        materials[currentMaterial.id] = currentMaterial;
         currentMaterial = null;
      }
 
@@ -248,15 +256,12 @@ THREE.AMFParser.prototype.parse = function(data)
       //console.log("currentMeta",currentMeta)
       if( currentItem )
       {
-        //console.log("currentItem",typeof (currentItem))
         var varName = currentTag.attributes["type"].toLowerCase();
-        //currentItem[varName]= currentTag.value;
+        currentItem[varName]= currentTag.value;
+        //console.log("currentItem", currentItem)
       }
       currentMeta = null;
-
-      //console.log("meta",currentTag.attributes["type"],currentTag.value);
       //var type = currentTag.attributes["type"];
-      //currentItem[type] = currentTag.value;
     }
     currentItem = null;
     if (currentTag && currentTag.parent) {
@@ -288,7 +293,7 @@ THREE.AMFParser.prototype.parse = function(data)
   };
   parser.write(data).close();
 
-  console.log("unit",unit,"version",version);
+  console.log("unit",unit,"version",version,"objectsIdMap",objectsIdMap,"materials",materials);
   //console.log("meshes",rootObject);
   var seconds = Math.floor((new Date() - startTime) / 1000);
   console.log("parsing time",seconds + "s");
@@ -323,7 +328,6 @@ THREE.AMFParser.prototype.unpack = function( data )
   //TODO: get binary see http://stackoverflow.com/questions/327685/is-there-a-way-to-read-binary-data-in-javascript
 }
 
-
 THREE.AMFParser.prototype.ensureString = function (buf) {
 
 	if (typeof buf !== "string"){
@@ -337,7 +341,6 @@ THREE.AMFParser.prototype.ensureString = function (buf) {
 		return buf;
 	}
 };
-
 
 THREE.AMFParser.prototype._generateObject = function( object )
 {
@@ -443,25 +446,6 @@ THREE.AMFParser.prototype._parseConstellation = function ( root, meshes ){
 	return scene;
 }
 
-
-
-function parseMetaData( node )
-	{
-		var metadataList = node.getElementsByTagName("metadata");
-		var result = {};
-		for (var i=0; i<metadataList.length;i++)
-		{
-			var current = metadataList[i];
-			if (current.parentNode == node)
-			{
-				var name = current.attributes.getNamedItem("type").nodeValue;
-				var value = current.textContent;
-				result[name] = value;
-			}
-		}
-		return result;
-	}
-
   function parseText( value, toType , defaultValue)
 	{
 		defaultValue = defaultValue || null;
@@ -473,9 +457,9 @@ function parseMetaData( node )
 				case "float":
 					value = parseFloat(value);
 				break;
-			
 				case "int":
 					value = parseInt(value);
+        break;
 				//default:
 			}
 		}
@@ -504,7 +488,6 @@ function parseMetaData( node )
     var prefix =  prefix || "" ;
     var defaultValue = defaultValue || 0.0;
 
-    console.log("parsing vect3", node)
     var x = parseText( node[prefix+"x"].value, "float" , defaultValue);
     var y = parseText( node[prefix+"y"].value, "float" , defaultValue);
     var z = parseText( node[prefix+"z"].value, "float" , defaultValue);
