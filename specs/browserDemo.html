@@ -4,13 +4,14 @@
        <script type="text/javascript" src="three.min.js"></script>
 
       <script type="text/javascript" src="../components/jszip/dist/jszip.min.js"></script>
+       <script type="text/javascript" src="sax.js"></script>
       <!--
       <script type="text/javascript" src="../components/jszip/jszip.js"></script>
       <script type="text/javascript" src="../components/jszip/jszip-load.js"></script>
       <script type="text/javascript" src="../components/jszip/jszip-inflate.js"></script>
       -->      
 
-      <script src="../AMFParser.js"></script>
+      <script src="../AMFParser_stream.js"></script>
   </head>
 <body>
 
@@ -82,9 +83,10 @@
 
     }
    
-      fetchData("data/RoboIce-dual.amf");
+      //fetchData("data/RoboIce-dual.amf");
       //fetchData("data/stapel_dual.amf");
       //fetchData("data/Rook.amf");
+      fetchData("data/Sphere20Face.amf")
 
   </script>  
 </body>

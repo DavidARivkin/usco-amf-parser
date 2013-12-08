@@ -250,7 +250,7 @@ THREE.AMFParser.prototype.parse = function(data)
       {
         //console.log("currentItem",typeof (currentItem))
         var varName = currentTag.attributes["type"].toLowerCase();
-        currentItem[varName]= currentTag.value;
+        //currentItem[varName]= currentTag.value;
       }
       currentMeta = null;
 
@@ -273,6 +273,7 @@ THREE.AMFParser.prototype.parse = function(data)
   };
   parser.ontext = function (text) {
     if (currentTag) currentTag.value = text
+    //if (currentTag.parent) console.log("currentTag.parent",currentTag.parent)
   }
 
   parser.onerror = function(error)
@@ -500,7 +501,7 @@ function parseMetaData( node )
 	function parseVector3( node, prefix, defaultValue )
 	{
 		var coords = null;
-    var prefix = "" ;
+    var prefix =  prefix || "" ;
     var defaultValue = defaultValue || 0.0;
 
     console.log("parsing vect3", node)
