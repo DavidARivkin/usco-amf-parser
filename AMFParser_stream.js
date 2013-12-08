@@ -107,6 +107,8 @@ THREE.AMFParser.prototype.parse = function(data)
   var currentConstellation = null;
   var currentObjectInstance = null;
 
+  //TODO: oh ye gad's need to find a cleaner solution
+  var facesThatNeedMaterial = [];
 
   //copy settings to local scope
   var defaultColor = this.defaultColor;
@@ -156,7 +158,9 @@ THREE.AMFParser.prototype.parse = function(data)
         currentItem = currentObject;
       break;
       case 'volume':
-        //currentVolume = new THREE.Geometry();
+        currentVolume = {};
+        var materialId = tag.attributes["materialid"] || null;
+        if(materialId) currentVolume.materialId = materialId;
       break;
       case 'triangle':
         currentFaceData = {}
@@ -209,15 +213,19 @@ THREE.AMFParser.prototype.parse = function(data)
 
     if(currentTag.name == "color")
     {//WARNING !! color can be used not only inside objects but also materials etc
+     //order(descending): triangle, vertex, volume, object, material
       var color = parseColor(currentTag);
 
-      if(currentMaterial) currentMaterial["color"] = color;
-      if(currentFaceData) currentFaceData["color"] = color;
       if(currentObject && (!currentFaceData)) currentObject._attributes["color"].push( color);
+      if(currentVolume) currentVolume["color"] = color;
+      if(currentFaceData) currentFaceData["color"] = color;
+      if(currentMaterial) currentMaterial["color"] = color;
     }
 
     //per volume data (one volume == one three.js mesh)
-    if(currentTag.name == "volume"){}
+    if(currentTag.name == "volume"){
+      currentVolume = null;
+    }
 
     if(currentTag.name == "triangle")
     {
@@ -244,9 +252,14 @@ THREE.AMFParser.prototype.parse = function(data)
         var normals = [defaultVertexNormal,defaultVertexNormal, defaultVertexNormal];
       }
       var face = new THREE.Face3( v1, v2, v3 , normals, colors);
-      //console.log("face color",currentFaceData["color"])
+
+      //triangle, vertex, volume, object, material
+      if('color' in currentVolume) face.color = currentVolume["color"];  
       if('color' in currentFaceData) face.color.setRGB( currentFaceData["color"].r, currentFaceData["color"].g, currentFaceData["color"].b );
+      
       //a, b, c, normal, color, materialIndex
+      //console.log("face's volume",currentVolume)
+      if( 'materialId' in currentVolume) facesThatNeedMaterial.push({"matId":currentVolume.materialId,"item": face})
       
       //TODO: fix hack
       currentFaceData = null;
@@ -265,9 +278,8 @@ THREE.AMFParser.prototype.parse = function(data)
       {
         var varName = currentTag.attributes["type"].toLowerCase();
         currentItem[varName]= currentTag.value;
-        //console.log("currentItem", currentItem)
+        //console.log("currentItem", currentItem, currentMeta)
       }
-      //console.log("currentMeta",currentMeta)
       currentMeta = null;
     }
 
@@ -316,11 +328,13 @@ THREE.AMFParser.prototype.parse = function(data)
   parser.onend = function () {
     // parser stream is done, and ready to have more stuff written to it.
     console.log("THE END");
-    self._generateScene();
+    //self._generateScene();
+    self._applyMaterials(materials, meshes,facesThatNeedMaterial);
   };
   parser.write(data).close();
 
-  console.log("unit",unit,"version",version,"objectsIdMap",objectsIdMap,"materials",materials);
+  console.log("unit",unit,"version",version,"objectsIdMap",objectsIdMap);
+  //console.log("materials",materials);
   //console.log("meshes",rootObject);
   var seconds = Math.floor((new Date() - startTime) / 1000);
   console.log("parsing time",seconds + "s");
@@ -384,36 +398,23 @@ THREE.AMFParser.prototype._generateScene = function ( ){
   // if there is constellation data, don't just add meshes to the scene, but use 
 	//the info from constellation to do so (additional transforms)
   return
-	var scene = this._parseConstellation( root, meshes );
-	if (scene == null)
-	{
-		scene = new THREE.Object3D(); //storage of actual objects /meshes
-		for (var meshIndex in meshes)
-		{
-			var mesh = meshes[meshIndex];
-			scene.add( mesh );
-		}
-	}
-	return scene;
 }
 
-THREE.AMFParser.prototype._parseMaterials = function ( node ){
-	console.log("gne")
-	var materialsData = node.getElementsByTagName("material");
-	var materials = {};
-	if (materialsData !== undefined)
-	{
-		for (var j=0; j<materialsData.length; j++)
-		{
-			var materialData = materialsData[ j ];
-			var materialId = materialData.attributes.getNamedItem("id").nodeValue;
-			var materialMeta = parseMetaData( materialData )
-			var materialColor = parseColor(materialData);
-			//console.log("material id", materialId, "color",materialColor );
-			materials[materialId] = {color:materialColor}
-		}
-	}
-	return materials;
+THREE.AMFParser.prototype._applyMaterials = function(materials, meshes, facesThatNeedMaterial)
+{//since materials are usually defined after objects/ volumes, we need to apply
+  //materials to those that need them
+  //console.log("applying materials",facesThatNeedMaterial)
+
+  for(var i = 0 ; i<facesThatNeedMaterial.length; i++)
+  {
+      //facesThatNeedMaterial.push({"matId":currentVolume.materialId,"item": face})
+      var curFace = facesThatNeedMaterial[i];
+      var mat = materials[curFace.matId];
+      curFace.item.color = mat.color;
+      curFace.item.vertexColors = [];
+      //console.log("curFace",curFace.item);
+  }
+  
 }
 
   function parseText( value, toType , defaultValue)
@@ -444,9 +445,9 @@ THREE.AMFParser.prototype._parseMaterials = function ( node ){
 	{
 		var color = defaultValue || null; //var color = volumeColor !== null ? volumeColor : new THREE.Color("#ffffff");
 
-		var r = parseText( node.r.value , "r", "float",1.0);
-		var g = parseText( node.g.value , "g", "float", 1.0);
-		var b = parseText( node.b.value , "b", "float", 1.0);
+		var r = parseText( node.r.value , "float",1.0);
+		var g = parseText( node.g.value , "float", 1.0);
+		var b = parseText( node.b.value , "float", 1.0);
 		var color = new THREE.Color().setRGB( r, g, b );
 
 		return color;
