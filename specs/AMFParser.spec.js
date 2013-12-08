@@ -54,8 +54,8 @@ describe("AMF parser tests", function() {
     data = fs.readFileSync("specs/data/hackaday_dual_color.amf",'binary')
     parsedAmf = sParser.parse(data);
     expect(parsedAmf instanceof THREE.Object3D).toBe(true);
-    expect(parsedAmf.children[0].geometry.vertices.length).toEqual(8);
-    expect(parsedAmf.children[0].geometry.faces.length).toEqual(12);
+    expect(parsedAmf.children[0].geometry.vertices.length).toEqual(2112);
+    expect(parsedAmf.children[0].geometry.faces.length).toEqual(1520);
     expect(parsedAmf.children[0].geometry.faces[3].color).toEqual( new THREE.Color().setRGB(0.960784,1,0.121569 ) );
   });
 

@@ -34,6 +34,7 @@
 *--------->1..1 Color
 *--------->1..1 Normal
 *----->1..N Volumes (THREE.js geometry is at this level)
+* 1--N Materials
 */
 
 /*Algorithm
@@ -45,6 +46,8 @@ For each Object in amf
     for each Volume
       grab triangles (vertex indices)
       add data to geometry
+Problem !! Materials are defined AFTER volumes
+BUT volumes can reference materials ...
 */
 
 var isNode = 
@@ -91,9 +94,6 @@ THREE.AMFParser.prototype.parse = function(data)
   var objects = [];
   
   var meshes = [];//temporary storage
-	
-	//this.textures = this._parseTextures( root );
-	//this.materials = this._parseMaterials( root ); 
   
   var currentTag = null;
   var currentItem = null;//pointer to currently active item/tag etc
@@ -104,6 +104,14 @@ THREE.AMFParser.prototype.parse = function(data)
   var currentGeometry=null;
   
   var currentVolume = null;
+
+
+  var currentMaterial = null;
+  //storage
+  //this.textures = this._parseTextures( root );
+	//this.materials = this._parseMaterials( root ); 
+  var materials = {};
+
   //copy settings to local scope
   var defaultColor = this.defaultColor;
 	var defaultVertexNormal = this.defaultVertexNormal;
@@ -140,13 +148,13 @@ THREE.AMFParser.prototype.parse = function(data)
       var color = new THREE.Color("#ffffff");
 
 		  //console.log("color", color);
-		  var currentMaterial = new THREE.MeshLambertMaterial(
+		  var MeshMaterial = new THREE.MeshLambertMaterial(
 		  { 	color: color,
 			  //vertexColors: THREE.VertexColors,
         vertexColors: THREE.FaceColors,
 			  shading: THREE.FlatShading
 		  } );
-      currentObject.material = currentMaterial;
+      currentObject.material = MeshMaterial;
       //console.log("finished Object / THREE.Mesh",currentObject)
       currentObject = null;
       
@@ -181,17 +189,9 @@ THREE.AMFParser.prototype.parse = function(data)
       //var a = parseText( currentTag.a.value , "a", "float" , 1.0);
       var vertexColor = new THREE.Color().setRGB( r, g , b );
 
-      console.log("parent",currentTag.parent.name);
-
+      if(currentMaterial) currentMaterial["color"] = vertexColor;
       if(currentFaceData) currentFaceData["color"] = vertexColor;
       if(currentObject && (!currentFaceData)) currentObject._attributes["color"].push( vertexColor);
-    }
-
-    if(currentTag.name == "metadata")
-    {
-      //console.log("meta",currentTag.attributes["type"],currentTag.value);
-      //var type = currentTag.attributes["type"];
-      //currentItem[type] = currentTag.value;
     }
 
     //per volume data (one volume == one three.js mesh)
@@ -228,7 +228,7 @@ THREE.AMFParser.prototype.parse = function(data)
 
       var face = new THREE.Face3( v1, v2, v3 , normals, colors);
 
-      console.log("face color",currentFaceData["color"])
+      //console.log("face color",currentFaceData["color"])
       if('color' in currentFaceData) face.color.setRGB( currentFaceData["color"].r, currentFaceData["color"].g, currentFaceData["color"].b );
       //a, b, c, normal, color, materialIndex
       
@@ -237,6 +237,30 @@ THREE.AMFParser.prototype.parse = function(data)
   
       currentObject.geometry.faces.push(face);
     }
+    
+    if(currentTag.name == "material")
+    {
+        console.log("material",currentMaterial)
+        currentMaterial = null;
+     }
+
+    if(currentTag.name == "metadata")
+    {
+      console.log("currentMeta",currentMeta)
+      if( currentItem )
+      {
+        //console.log("currentItem",typeof (currentItem))
+        var varName = currentTag.attributes["type"].toLowerCase();
+        currentItem[varName]= currentTag.value;
+      }
+      currentMeta = null;
+
+      console.log("meta",currentTag.attributes["type"],currentTag.value);
+      //var type = currentTag.attributes["type"];
+      //currentItem[type] = currentTag.value;
+    }
+
+    currentItem = null;
 
     if (currentTag && currentTag.parent) {
       var p = currentTag.parent
@@ -282,13 +306,20 @@ THREE.AMFParser.prototype.parse = function(data)
       break;
 
       case 'material':
-        console.log("material",currentTag)
+        currentMaterial = {};
+        currentItem = currentMaterial;
       break;
+      case 'metadata':
+        currentMeta = {};
+      break;
+
     }
   
   };
   parser.onattribute = function (attr) {
     // an attribute.  attr has "name" and "value"
+  
+    if(currentItem) console.log("currentItem + attr",currentItem, attr)
     if(currentItem) currentItem[attr.name]= attr.value;
   };
   parser.ontext = function (text) {
