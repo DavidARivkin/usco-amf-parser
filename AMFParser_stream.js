@@ -92,7 +92,6 @@ THREE.AMFParser.prototype.parse = function(data)
   var version = null;
 
   var objects = [];
-  
   var meshes = [];//temporary storage
   
   var currentTag = null;
@@ -100,13 +99,10 @@ THREE.AMFParser.prototype.parse = function(data)
 
   var currentColor = null;
   var currentVertex = null;
-
   var currentGeometry=null;
-  
   var currentVolume = null;
-
-
   var currentMaterial = null;
+  var currentFaceData = null;
   //storage
   //this.textures = this._parseTextures( root );
 	//this.materials = this._parseMaterials( root ); 
@@ -116,8 +112,8 @@ THREE.AMFParser.prototype.parse = function(data)
   var defaultColor = this.defaultColor;
 	var defaultVertexNormal = this.defaultVertexNormal;
 	var recomputeNormals = this.recomputeNormals;
-  
-  var currentFaceData = null;
+
+  var self = this;  
   //
   parser.onopentag = function (tag) {
     // opened a tag.  node has "name" and "attributes"
@@ -138,7 +134,6 @@ THREE.AMFParser.prototype.parse = function(data)
         currentObject = new THREE.Mesh();
         currentObject._id = tag.attributes["id"] || null;
         currentObject.geometry = new THREE.Geometry();//TODO: does this not get auto created ???
-
         //temp storage:
         currentObject._attributes =  {};
         currentObject._attributes["position"] = [];
@@ -154,7 +149,6 @@ THREE.AMFParser.prototype.parse = function(data)
         currentFaceData = {}
         //currentTriangle = 
       break;
-
       case 'material':
         currentMaterial = {};
         currentItem = currentMaterial;
@@ -165,68 +159,38 @@ THREE.AMFParser.prototype.parse = function(data)
     }
   };
   parser.onclosetag = function (tag) {
-    //console.log("closing tag" ,tag)
     //console.log("parent",currentTag.parent.name)
     if(currentTag.name == "object")
     {
       meshes.push(currentObject);
       rootObject.add(currentObject);
-      if(recomputeNormals)
-		  {
-			  //TODO: only do this, if no normals were specified???
-			  currentObject.geometry.computeFaceNormals();
-			  currentObject.geometry.computeVertexNormals();
-		  }
-		  currentObject.geometry.computeBoundingBox();
-		  currentObject.geometry.computeBoundingSphere();
-
-      //var color = volumeColor !== null ? volumeColor : new THREE.Color("#ffffff");
-      var color = new THREE.Color("#ffffff");
-
-		  //console.log("color", color);
-		  var MeshMaterial = new THREE.MeshLambertMaterial(
-		  { 	color: color,
-			  //vertexColors: THREE.VertexColors,
-        vertexColors: THREE.FaceColors,
-			  shading: THREE.FlatShading
-		  } );
-      currentObject.material = MeshMaterial;
-      //console.log("finished Object / THREE.Mesh",currentObject)
+      self._generateObject( currentObject );
       currentObject = null;
     }
 
     //lower level
     if(currentTag.name == "coordinates")
     {
-      var x = parseText( currentTag.x.value , "x", "float" , 0.0);
-      var y = parseText( currentTag.y.value , "y", "float" , 0.0);
-      var z = parseText( currentTag.z.value , "z", "float" , 0.0);
-      var vertexCoords = new THREE.Vector3(x,y,z);
+      var vertexCoords = parseVector3(currentTag);
+
       currentObject.geometry.vertices.push(vertexCoords); 
       currentObject._attributes["position"].push( vertexCoords );
     }
 
     if(currentTag.name == "normal")
     {
-      var x = parseText( currentTag.nx.value , "x", "float" , 1.0);
-      var y = parseText( currentTag.ny.value , "y", "float" , 1.0);
-      var z = parseText( currentTag.nz.value , "z", "float" , 1.0);
-      var vertexNormal = new THREE.Vector3(x,y,z);
+      var vertexNormal = parseVector3(currentTag,"n", 1.0);
       currentObject._attributes["normal"].push( vertexNormal );
     }
 
     if(currentTag.name == "color")
     {
       //WARNING !! color can be used not only inside objects but also materials etc
-      var r = parseText( currentTag.r.value , "r", "float" , 0.0);
-      var g = parseText( currentTag.g.value , "g", "float" , 0.0);
-      var b = parseText( currentTag.b.value , "b", "float" , 0.0);
-      //var a = parseText( currentTag.a.value , "a", "float" , 1.0);
-      var vertexColor = new THREE.Color().setRGB( r, g , b );
+      var color = parseColor(currentTag);
 
-      if(currentMaterial) currentMaterial["color"] = vertexColor;
-      if(currentFaceData) currentFaceData["color"] = vertexColor;
-      if(currentObject && (!currentFaceData)) currentObject._attributes["color"].push( vertexColor);
+      if(currentMaterial) currentMaterial["color"] = color;
+      if(currentFaceData) currentFaceData["color"] = color;
+      if(currentObject && (!currentFaceData)) currentObject._attributes["color"].push( color);
     }
 
     //per volume data (one volume == one three.js mesh)
@@ -245,7 +209,7 @@ THREE.AMFParser.prototype.parse = function(data)
       if(colorData.length>0)
       {
         var colors = [colorData[v1] ,colorData[v2], colorData[v3]];
-        console.log("colors",colors)
+        //console.log("colors",colors)
       }
       else
       {
@@ -281,7 +245,7 @@ THREE.AMFParser.prototype.parse = function(data)
 
     if(currentTag.name == "metadata")
     {
-      console.log("currentMeta",currentMeta)
+      //console.log("currentMeta",currentMeta)
       if( currentItem )
       {
         //console.log("currentItem",typeof (currentItem))
@@ -290,7 +254,7 @@ THREE.AMFParser.prototype.parse = function(data)
       }
       currentMeta = null;
 
-      console.log("meta",currentTag.attributes["type"],currentTag.value);
+      //console.log("meta",currentTag.attributes["type"],currentTag.value);
       //var type = currentTag.attributes["type"];
       //currentItem[type] = currentTag.value;
     }
@@ -304,8 +268,7 @@ THREE.AMFParser.prototype.parse = function(data)
 
   parser.onattribute = function (attr) {
     // an attribute.  attr has "name" and "value"
-  
-    if(currentItem) console.log("currentItem + attr",currentItem, attr)
+    //if(currentItem) console.log("currentItem + attr",currentItem, attr)
     if(currentItem) currentItem[attr.name]= attr.value;
   };
   parser.ontext = function (text) {
@@ -317,7 +280,6 @@ THREE.AMFParser.prototype.parse = function(data)
       console.log("error in parser",error)
   }
 
-  var self = this;
   parser.onend = function () {
     // parser stream is done, and ready to have more stuff written to it.
     console.log("THE END");
@@ -376,6 +338,30 @@ THREE.AMFParser.prototype.ensureString = function (buf) {
 };
 
 
+THREE.AMFParser.prototype._generateObject = function( object )
+{
+    if(this.recomputeNormals)
+	  {
+		  //TODO: only do this, if no normals were specified???
+		  object.geometry.computeFaceNormals();
+		  object.geometry.computeVertexNormals();
+	  }
+	  object.geometry.computeBoundingBox();
+	  object.geometry.computeBoundingSphere();
+
+    //var color = volumeColor !== null ? volumeColor : new THREE.Color("#ffffff");
+    var color = new THREE.Color("#ffffff");
+
+	  var MeshMaterial = new THREE.MeshLambertMaterial(
+	  { 	color: color,
+		  //vertexColors: THREE.VertexColors,
+      vertexColors: THREE.FaceColors,
+		  shading: THREE.FlatShading
+	  } );
+    object.material = MeshMaterial;
+    //console.log("finished Object / THREE.Mesh",currentObject)
+}
+
 THREE.AMFParser.prototype._generateScene = function ( ){
   console.log("generating scene");
 
@@ -393,7 +379,6 @@ THREE.AMFParser.prototype._generateScene = function ( ){
 		}
 	}
 	return scene;
-
 }
 
 
@@ -476,7 +461,7 @@ function parseMetaData( node )
 		return result;
 	}
 
-  function parseText( value , name, toType , defaultValue)
+  function parseText( value, toType , defaultValue)
 	{
 		defaultValue = defaultValue || null;
 
@@ -502,68 +487,30 @@ function parseMetaData( node )
 
 	function parseColor( node , defaultValue)
 	{
-		var colorNode = node.getElementsByTagName("color")[0];//var color = volumeColor !== null ? volumeColor : new THREE.Color("#ffffff");
-		var color = defaultValue || null;
-		
-		if (colorNode !== null && colorNode !== undefined)
-		{
-			if (colorNode.parentNode == node)
-			{
-			var r = parseTagText( node , "r", "float");
-			var g = parseTagText( node , "g", "float");
-			var b = parseTagText( node , "b", "float");
-			var color = new THREE.Color().setRGB( r, g, b );
-			}
-		}	
+		var color = defaultValue || null; //var color = volumeColor !== null ? volumeColor : new THREE.Color("#ffffff");
+
+		var r = parseText( node.r.value , "r", "float",1.0);
+		var g = parseText( node.g.value , "g", "float", 1.0);
+		var b = parseText( node.b.value , "b", "float", 1.0);
+		var color = new THREE.Color().setRGB( r, g, b );
+
 		return color;
 	}
 
-	function parseVector3( node, prefix )
+	function parseVector3( node, prefix, defaultValue )
 	{
 		var coords = null;
-		
-		var x = parseText( node , prefix+"x", "float") || 0;
-		var y = parseText( node , prefix+"y", "float") || 0;
-		var z = parseText( node , prefix+"z", "float") || 0;
-		var coords = new THREE.Vector3(x,y,z);
+    var prefix = "" ;
+    var defaultValue = defaultValue || 0.0;
+
+    console.log("parsing vect3", node)
+    var x = parseText( node[prefix+"x"].value, "float" , defaultValue);
+    var y = parseText( node[prefix+"y"].value, "float" , defaultValue);
+    var z = parseText( node[prefix+"z"].value, "float" , defaultValue);
+    var coords = new THREE.Vector3(x,y,z);
+
 		return coords;
 	}
 
-	function parseCoords( node )
-	{
-		var coordinatesNode = node.getElementsByTagName("coordinates")[0];
-		var coords = null;
-		
-		if (coordinatesNode !== null && coordinatesNode !== undefined)
-		{
-			if (coordinatesNode.parentNode == node)
-			{
-			var x = parseTagText( node , "x", "float");
-			var y = parseTagText( node , "y", "float");
-			var z = parseTagText( node , "z", "float");
-			var coords = new THREE.Vector3(x,y,z);
-			}
-		}	
-		return coords;
-	}
-	
-	function parseNormals( node, defaultValue )
-	{
-		//get vertex normal data (optional)
-		var normalsNode = node.getElementsByTagName("normal")[0];
-		var normals = defaultValue || null;;
-		
-		if (normalsNode !== null && normalsNode !== undefined)
-		{
-			if (normalsNode.parentNode == node)
-			{
-			var x = parseTagText( node , "nx", "float");
-			var y = parseTagText( node , "ny", "float");
-			var z = parseTagText( node , "nz", "float");
-			var normals = new THREE.Vector3(x,y,z);
-			}
-		}	
-		return normals;
-	}
 
 if (isNode) module.exports = THREE.AMFParser;

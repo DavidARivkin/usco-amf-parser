@@ -24,14 +24,14 @@ describe("AMF parser tests", function() {
   });
   */
   //STREAMING parser
-  /*
-  it("can parse uncompressed amf files with vertex colors (streaming)", function() {
+  
+  /*it("can parse uncompressed amf files with vertex colors (streaming)", function() {
     data = fs.readFileSync("specs/data/VertColors.amf",'binary')
     parsedAmf = sParser.parse(data);
     expect(parsedAmf instanceof THREE.Object3D).toBe(true);
     expect(parsedAmf.children[0].geometry.vertices.length).toEqual(8);
     expect(parsedAmf.children[0].geometry.faces.length).toEqual(12);
-  });
+  });*/
 
   it("can parse uncompressed amf files with vertex normals (streaming)", function() {
     data = fs.readFileSync("specs/data/Sphere20Face.amf",'binary')
@@ -41,14 +41,14 @@ describe("AMF parser tests", function() {
     expect(parsedAmf.children[0].geometry.faces.length).toEqual(20);
   });
 
-  it("can parse uncompressed amf files with face colors (streaming)", function() {
+  /*it("can parse uncompressed amf files with face colors (streaming)", function() {
     data = fs.readFileSync("specs/data/FaceColors.amf",'binary')
     parsedAmf = sParser.parse(data);
     expect(parsedAmf instanceof THREE.Object3D).toBe(true);
     expect(parsedAmf.children[0].geometry.vertices.length).toEqual(8);
     expect(parsedAmf.children[0].geometry.faces.length).toEqual(12);
     expect(parsedAmf.children[0].geometry.faces[3].color).toEqual( new THREE.Color().setRGB(0.960784,1,0.121569 ) );
-  });*/
+  });
 
   it("can parse compressed amf files with materials (streaming)", function() {
     data = fs.readFileSync("specs/data/hackaday_dual_color.amf",'binary')
@@ -59,7 +59,7 @@ describe("AMF parser tests", function() {
     expect(parsedAmf.children[0].geometry.faces[3].color).toEqual( new THREE.Color().setRGB(0.960784,1,0.121569 ) );
   });
 
-  /*
+  
   it("can parse uncompressed, larger amf files  (streaming)", function() {
     data = fs.readFileSync("specs/data/Rook.amf",'binary')
     parsedAmf = sParser.parse(data);
