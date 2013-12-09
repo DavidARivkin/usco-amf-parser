@@ -1,0 +1,45 @@
+<?xml version="1.0"?> 
+<amf unit="millimeter"> 
+ <material id="1"> 
+ <metadata type="Name">StiffMaterial</metadata> 
+ <color> 
+ <r>0</r> 
+ <g>z</g> 
+ <b>1-z</b> 
+ </color> 
+ </material> 
+ <texture id="1" width="10" height="26" type="grayscale"> 
+ TWFuIGlzIGRpc3Rpbmd1aXNoZWQsIG5vdCB 
+ vbmx5IGJ5IGhpcyByZWFzb24sIGJ1dCBieS 
+ B0aGlzIHNpbmd1bGFyIHBhc3Npb24gZnJvb 
+ SBvdGhlciBhbmltYWxzLCB3aGljaCBpcyBh 
+ ... 
+ </texture> 
+ <object id="0"> 
+ <mesh> 
+ <vertices> 
+ ... 
+ </vertices> 
+ <volume materialid="1"> 
+ <color> 
+ <r>0.9</r> 
+ <g>0.9</g> 
+ <b>0.2</b> 
+ <a>0.8</a> 
+ </color> 
+ ... 
+ <triangle> 
+ <v1>0</v1> 
+ <v2>1</v2> 
+ <v3>3</v3> 
+ <color> 
+ <r>tex(1,x,y)</r> 
+ <g>tex(2,x,y)</g> 
+ <b>tex(3,x,y)</b> 
+ <a>0.1</a> 
+ </color> 
+ </triangle> 
+ </volume> 
+ </mesh> 
+ </object> 
+</amf>

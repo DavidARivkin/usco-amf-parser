@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?> 
+<amf unit="millimeter"> 
+ <material id="1"> 
+  <metadata type="Name">StiffMaterial</metadata> 
+ </material> 
+ <material id="2"> 
+  <metadata type="Name">FlexibleMaterial</metadata> 
+ </material> 
+ <material id="3"> 
+  <metadata type="Name">MediumMaterial</metadata> 
+  <composite materialid="1">0.4</composite> 
+  <composite materialid="2">0.6</composite> 
+ </material> 
+ <material id="4"> 
+  <metadata type="Name">VerticallyGraded</metadata> 
+  <composite materialid="1">z</composite> 
+  <composite materialid="2">10-z</composite> 
+ </material> 
+ <material id="5"> 
+  <metadata type="Name">Checkerboard</metadata > 
+  <composite materialid="1"> floor(x+y+z%1)+0.5) </composite> 
+  <composite materialid="2"> 1-floor(x+y+z%1)+0.5) </composite> 
+ </material> 
+ <object id="0"> 
+  <mesh> 
+    <vertices> 
+    </vertices> 
+    <volume materialid="1"> 
+    </volume> 
+    <volume materialid="2"> 
+    </volume> 
+  </mesh> 
+ </object> 
+</amf>
