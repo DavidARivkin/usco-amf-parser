@@ -23,6 +23,8 @@ describe("AMF parser tests", function() {
     expect(parsedAmf.children[0].geometry.vertices.length).toEqual(1843);
   });
   */
+
+
   //STREAMING parser
   /*
   it("can parse uncompressed amf files with vertex normals (streaming)", function() {
@@ -41,7 +43,7 @@ describe("AMF parser tests", function() {
     expect(parsedAmf.children[0].geometry.faces.length).toEqual(12);
   });*/
 
-  it("can parse uncompressed amf files with face colors (streaming)", function() {
+  /*it("can parse uncompressed amf files with face colors (streaming)", function() {
     data = fs.readFileSync("specs/data/FaceColors.amf",'binary')
     parsedAmf = sParser.parse(data);
     expect(parsedAmf instanceof THREE.Object3D).toBe(true);
@@ -58,8 +60,7 @@ describe("AMF parser tests", function() {
     expect(parsedAmf.children[0].geometry.faces.length).toEqual(1520);
     expect(parsedAmf.children[0].geometry.faces[0].color).toEqual( new THREE.Color().setRGB(0.48, 0.71, 0.27 ) );
   });
-
-  /*
+ 
   it("can parse uncompressed amf files with constellations (streaming)", function() {
     data = fs.readFileSync("specs/data/Constellation.amf",'binary')
     parsedAmf = sParser.parse(data);
@@ -75,9 +76,8 @@ describe("AMF parser tests", function() {
     expect(parsedAmf.children[1].position.x).toEqual(-10);
     expect(parsedAmf.children[1].position.y).toEqual(10);
     expect(parsedAmf.children[1].rotation.z).toEqual(180);
-  });*/
-
-  //////////:
+  });
+ */
   /*
   it("can parse uncompressed, larger amf files  (streaming)", function() {
     data = fs.readFileSync("specs/data/Rook.amf",'binary')
@@ -87,7 +87,7 @@ describe("AMF parser tests", function() {
     expect(parsedAmf.children[0].geometry.faces.length).toEqual(3682);
   });*/
 
-  /*
+  
   it("can parse uncompressed amf files with textures (streaming)", function() {
     //TODO: find correct way to test texture parsing
     data = fs.readFileSync("specs/data/Amf_Cube.amf",'binary')
@@ -96,7 +96,7 @@ describe("AMF parser tests", function() {
     expect(parsedAmf.children[0].geometry.vertices.length).toEqual(8);
     expect(parsedAmf.children[0].geometry.faces.length).toEqual(12);
   });
-*/
+/**/
   
   /* 
   it("can parse compressed amf files(streaming)", function() {

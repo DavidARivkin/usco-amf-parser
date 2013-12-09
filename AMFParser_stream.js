@@ -75,8 +75,12 @@ THREE.AMFParser.prototype = {
 	constructor: THREE.AMFParser
 };
 
-THREE.AMFParser.prototype.parse = function(data)
+THREE.AMFParser.prototype.parse = function(data, parameters)
 {
+  var parameters = parameters || {};
+  var useWorker  = parameters.useWorker || false;
+  var useBuffers = parameters.useBuffers || false;
+
   /*if( root.nodeName !== "amf")
 	{
 		throw("Unvalid AMF document, should have a root node called 'amf'");
@@ -108,6 +112,9 @@ THREE.AMFParser.prototype.parse = function(data)
   var currentFaceData = null;
   var currentVertex   = null;
 
+  var currentTexMap = null;
+  var currentTexture = null;
+
   //logical grouping
   var currentConstellation = null;
   var currentObjectInstance = null;
@@ -126,28 +133,34 @@ THREE.AMFParser.prototype.parse = function(data)
   var objects = [];
 
   var meshes = {};
+  var textures = {};
   var materials = {};
-  //this.textures = this._parseTextures( root );
-	//this.materials = this._parseMaterials( root ); 
+
+  if ( useWorker ) {
+    var worker = new Worker( "AMFWorker.js" );
+  }
 
   //////////////
-  var self = this;  
-  //
+  var scope = this;  
+  
   parser.onopentag = function (tag) {
     // opened a tag.  node has "name" and "attributes"
     tag.parent = currentTag;
-    //tag.children = [];
-    //tag.parent && tag.parent.children.push(tag);
     currentTag = tag;
     if(tag.parent) tag.parent[tag.name] = tag;
   
     switch(tag.name)
     {
+      case 'metadata':
+        currentMeta = {};
+      break;
+
       case 'amf':
         unit = tag.attributes['unit'];
         version = tag.attributes['version'];
         currentItem = rootObject;
       break;
+
       case 'object':
         currentObject = new THREE.Mesh();
         var id = tag.attributes["id"] || null;
@@ -171,6 +184,8 @@ THREE.AMFParser.prototype.parse = function(data)
         currentFaceData = {}
         //currentTriangle = 
       break;
+
+      //materials and textures
       case 'material':
         currentMaterial = {};
         var id = tag.attributes["id"] || null;
@@ -178,9 +193,18 @@ THREE.AMFParser.prototype.parse = function(data)
 
         currentItem = currentMaterial;
       break;
-      case 'metadata':
-        currentMeta = {};
+      case 'texture':
+        currentTexture = {};
+        for( attrName in tag.attributes)
+        {
+          currentTexture[attrName] = tag.attributes[attrName];
+        }
+        currentItem = currentTexture;
+        console.log("currentTexture",currentTexture);
+        //texture width="256" height="256" type="grayscale" id="1" depth="1" tiled="false"
       break;
+
+      //constellation data
       case 'constellation':
         currentConstellation = new THREE.Object3D();
         var id = tag.attributes["id"] || null;
@@ -194,14 +218,26 @@ THREE.AMFParser.prototype.parse = function(data)
     }
   };
   parser.onclosetag = function (tag) {
+
+    if(currentTag.name == "metadata")
+    {
+      if( currentItem )
+      {
+        var varName = currentTag.attributes["type"].toLowerCase();
+        currentItem[varName]= currentTag.value;
+        //console.log("currentItem", currentTag, currentTag.parent)
+      }
+      currentMeta = null;
+    }
+
+
     if(currentTag.name == "object")
     {
-      self._generateObject( currentObject );
+      scope._generateObject( currentObject );
       meshes[currentObject._id] = currentObject;
       rootObject.add(currentObject);
       currentObject = null;
     }
-    //
     if(currentTag.name == "coordinates")
     {
       var vertexCoords = parseVector3(currentTag);
@@ -226,6 +262,16 @@ THREE.AMFParser.prototype.parse = function(data)
       if(currentFaceData) currentFaceData["color"] = color;
       if(currentMaterial) currentMaterial["color"] = color;
     }
+
+     if(currentTag.name == "map"){
+      for( attrName in currentTag.attributes)
+      {
+        currentTag[attrName] = currentTag.attributes[attrName];
+      }
+      var map = parseMapCoords( currentTag );
+      //console.log("closing map", currentTag);
+    }
+
 
     //per volume data (one volume == one three.js mesh)
     if(currentTag.name == "volume"){
@@ -268,7 +314,6 @@ THREE.AMFParser.prototype.parse = function(data)
       if('color' in currentVolume) face.color = currentVolume["color"];  
       if('color' in currentFaceData) face.color = currentFaceData["color"] ;
       
-      //TODO: fix hack
       currentFaceData = null;
       currentObject.geometry.faces.push(face);
     }
@@ -278,18 +323,15 @@ THREE.AMFParser.prototype.parse = function(data)
         materials[currentMaterial.id] = currentMaterial;
         currentMaterial = null;
      }
-
-    if(currentTag.name == "metadata")
+    if(currentTag.name == "texture")
     {
-      if( currentItem )
-      {
-        var varName = currentTag.attributes["type"].toLowerCase();
-        currentItem[varName]= currentTag.value;
-        //console.log("currentItem", currentItem, currentMeta)
-      }
-      currentMeta = null;
+        currentTexture.imgData = currentTag.value;
+        textures[currentTexture.id] = scope._parseTexture(currentTexture);
+        console.log("closing texture", textures);
+        currentTexture = null;
     }
 
+    //constellation
     if(currentTag.name == "constellation")
     {
         rootObject = currentConstellation;//FIXME: this is a hack
@@ -324,19 +366,21 @@ THREE.AMFParser.prototype.parse = function(data)
     if(currentItem) currentItem[attr.name]= attr.value;
   };
   parser.ontext = function (text) {
-    if (currentTag) currentTag.value = text
+    if (currentTag) currentTag.value = text;
+    //if (currentTag && currentTag.parent) currentTag.parent.value = text;
+    //console.log("text", currentTag.parent);
   }
 
   parser.onerror = function(error)
   { 
-      console.log("error in parser",error)
+      console.log("error in parser",error);
+      throw error;
   }
 
-  parser.onend = function () {
-    // parser stream is done, and ready to have more stuff written to it.
+  parser.onend = function () {// parser stream is done, and ready to have more stuff written to it.
     console.log("THE END");
-    //self._generateScene();
-    self._applyMaterials(materials, meshes,facesThatNeedMaterial);
+    //scope._generateScene();
+    scope._applyMaterials(materials, meshes,facesThatNeedMaterial);
   };
   parser.write(data).close();
 
@@ -345,6 +389,10 @@ THREE.AMFParser.prototype.parse = function(data)
   //console.log("meshes",rootObject);
   var seconds = Math.floor((new Date() - startTime) / 1000);
   console.log("parsing time",seconds + "s");
+
+  //TODO:should return multiple datas (parts == model/mesh)
+  //return {materials:{}, parts:"",}
+
   return rootObject;
 }
 
@@ -414,7 +462,6 @@ THREE.AMFParser.prototype._generateScene = function ( ){
 THREE.AMFParser.prototype._applyMaterials = function(materials, meshes, facesThatNeedMaterial)
 {//since materials are usually defined after objects/ volumes, we need to apply
   //materials to those that need them
-
   for(var i = 0 ; i<facesThatNeedMaterial.length; i++)
   {
       //facesThatNeedMaterial.push({"matId":currentVolume.materialId,"item": face})
@@ -424,8 +471,48 @@ THREE.AMFParser.prototype._applyMaterials = function(materials, meshes, facesTha
       curFace.item.vertexColors = [];
       //console.log("curFace",curFace.item);
   }
-  
 }
+
+THREE.AMFParser.prototype._parseTexture = function ( textureData ){
+	var rawImg = textureData.imgData;
+  //'data:image/png;base64,'+
+  //one byte per pixel : how to handle grayscale combos?
+  /*rawImg = 'iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAALEgAACxIB0t1+/AAAAB90RVh0U29mdHdhcmUATWFjcm9tZWRpYSBGaXJld29ya3MgOLVo0ngAAAAWdEVYdENyZWF0aW9uIFRpbWUAMDUvMjgvMTGdjbKfAAABwklEQVQ4jdXUsWrjQBCA4X+11spikXAEUWdSuUjh5goXx1V5snu4kMLgyoEUgYNDhUHGsiNbCK200hWXFI7iOIEUd9Mu87E7MzsC6PjCcL4S+z/AwXuHQgg8T6GUi+MI2rbDmJqqMnTd26U/CXqeRxD4aO2ilIOUAms7jGkpipr9vqSqqo+BnudxcaEZjRRx7DIeK7SWFIUlSQxpKhkMHLZbemgPFEIQBD6jkeL62mc2u2QyuSIMA/J8z+Pjb+bzNQ8P0DTtedDzFFq7xLHLbHbJzc0PptPv+H5EWWYsl3fALZvNirK05LnCGHMaVOpvzcZjxWRy9Yx9A2J8P2U6hSRJuL/fsFoZhsNjsDc2jiOQUqC1JAwDfD8CYkA/oxFhGKC1REqB44jj/Ndg23ZY21EUljzfU5YZkAIFkFKWGXm+pygs1nbUdXOUL4Gfr5vi+wohBFFk0VoQRQNcN6Msf7Fc3rFYLFksnsiymu22oG3b0zWsKkNR1KSpZD5fA7ckSdLrcprWHA6Gpjm+oeCNbXN+Dmt2O8N6/YS19jz4gp76KYeDYbc79LB3wZdQSjEcKhxHUNcNVVX3nvkp8LPx7+/DP92w3rYV8ocfAAAAAElFTkSuQmCC';*/
+
+  if(isNode)
+  {
+    function btoa(str) {
+      var buffer;
+      if (str instanceof Buffer) {
+        buffer = str;
+      } else {
+        buffer = new Buffer(str.toString(), 'binary');
+      }
+      return buffer.toString('base64');
+    }
+    rawImg = btoa(rawImg);
+  }
+  else
+  {
+    rawImg = btoa(rawImg);
+    /*var image = document.createElement( 'img' );
+    image.src = rawImg;
+    var texture = new THREE.Texture( image );*/
+  }
+  var texture = new THREE.DataTexture( rawImg, parseText(textureData.width,"int",256) , parseText(textureData.height,"int",256), THREE.RGBAFormat );
+  texture.needsUpdate = true;
+	
+	var id = textureData.id;
+	var type = textureData.type;
+	var tiling= textureData.tiled;
+  var depth = parseText(textureData.depth,"int",1) ;
+	
+  console.log("texture data", id, type, tiling,depth );
+	return texture;
+}
+
+///
+
 
   function parseText( value, toType , defaultValue)
 	{
@@ -476,6 +563,42 @@ THREE.AMFParser.prototype._applyMaterials = function(materials, meshes, facesTha
 
 		return coords;
 	}
+
+  function parseMapCoords( node, prefix, defaultValue)
+  {
+    //console.log("parsing map coords", node, ("btexid" in node) , node.btexid);
+    //get vertex UVs (optional)
+    //rtexid, gtexid, btexid
+    
+    var rtexid = ("rtexid" in node) ? parseText( node["rtexid"], "int" , null) : null;
+	  var gtexid = ("gtexid" in node) ? parseText( node["gtexid"], "int" , defaultValue) : null;
+		var btexid = ("btexid" in node) ? parseText( node["btexid"], "int" , defaultValue) : null;
+
+    var u1 = ("u1" in node) ? parseText( node["u1"].value, "float" , defaultValue) : null;
+	  var u2 = ("u2" in node) ? parseText( node["u2"].value, "float" , defaultValue) : null;
+		var u3 = ("u3" in node) ? parseText( node["u3"].value, "float" , defaultValue) : null;
+
+    var v1 = ("v1" in node) ? parseText( node["v1"].value, "float" , defaultValue) : null;
+	  var v2 = ("v2" in node) ? parseText( node["v2"].value, "float" , defaultValue) : null;
+		var v3 = ("v3" in node) ? parseText( node["v3"].value, "float" , defaultValue) : null;
+
+    //console.log("textures ids", rtexid,gtexid,btexid,"coords", u1,u2,u3,"/", v1,v2,v3);
+    //face.materialIndex  = rtexid;
+		//face.materialIndex  = 0;
+
+		var uv1 = (u1 !== null && v1 !=null) ? new THREE.Vector2(u1,v1) : null;
+		var uv2 = (u2 !== null && v2 !=null) ? new THREE.Vector2(u2,v2) : null; 
+	  var uv3 = (u3 !== null && v3 !=null) ? new THREE.Vector2(u3,v3) : null;
+		
+    var mappingData = {matId:0, uvs:[uv1,uv2,uv3]};
+    //currentGeometry.faceVertexUvs[ 0 ].push( [uv1,uv2,uv3]);
+    return mappingData;
+  }
+
+  function parseExpression( expr)
+  {//This is for "maths" expression for materials, colors etc :TODO: implement
+
+  }
 
 
 if (isNode) module.exports = THREE.AMFParser;
