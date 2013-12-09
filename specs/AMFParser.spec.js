@@ -24,7 +24,6 @@ describe("AMF parser tests", function() {
   });
   */
 
-
   //STREAMING parser
   /*
   it("can parse uncompressed amf files with vertex normals (streaming)", function() {
@@ -85,9 +84,37 @@ describe("AMF parser tests", function() {
     expect(parsedAmf instanceof THREE.Object3D).toBe(true);
     expect(parsedAmf.children[0].geometry.vertices.length).toEqual(1843);
     expect(parsedAmf.children[0].geometry.faces.length).toEqual(3682);
-  });*/
+  });
 
-  
+    it("can parse compressed amf files(streaming)", function() {
+    data = fs.readFileSync("specs/data/stapel_dual.amf",'binary')
+    parsedAmf = sParser.parse(data);
+    expect(parsedAmf instanceof THREE.Object3D).toBe(true);
+    expect(parsedAmf.children[0].geometry.vertices.length).toEqual(564);
+  });
+
+  //crashes node with normal parser: now it takes about 30 secs
+  it("can parse very large amf files(streaming)", function(){
+    data = fs.readFileSync("specs/data/RoboIce-dual.amf",'binary')
+    parsedAmf = sParser.parse(data);
+    expect(parsedAmf instanceof THREE.Object3D).toBe(true);
+    //expect(parsedAmf.children[0].name).toEqual("Default");
+    expect(parsedAmf.children[0].geometry.vertices.length).toEqual(144590);
+  });
+*/
+
+
+  //TODO: incompletes after this point
+  it("can parse uncompressed amf files with edges (streaming)", function() {
+    //TODO: find correct way to test texture parsing
+    data = fs.readFileSync("specs/data/CurveEdgeTest.amf",'binary')
+    parsedAmf = sParser.parse(data);
+    expect(parsedAmf instanceof THREE.Object3D).toBe(true);
+    expect(parsedAmf.children[0].geometry.vertices.length).toEqual(8);
+    expect(parsedAmf.children[0].geometry.faces.length).toEqual(12);
+  });
+
+  /*
   it("can parse uncompressed amf files with textures (streaming)", function() {
     //TODO: find correct way to test texture parsing
     data = fs.readFileSync("specs/data/Amf_Cube.amf",'binary')
@@ -96,24 +123,8 @@ describe("AMF parser tests", function() {
     expect(parsedAmf.children[0].geometry.vertices.length).toEqual(8);
     expect(parsedAmf.children[0].geometry.faces.length).toEqual(12);
   });
-/**/
+
+*/
   
-  /* 
-  it("can parse compressed amf files(streaming)", function() {
-    data = fs.readFileSync("specs/data/stapel_dual.amf",'binary')
-    parsedAmf = sParser.parse(data);
-    expect(parsedAmf instanceof THREE.Object3D).toBe(true);
-    expect(parsedAmf.children[0].geometry.vertices.length).toEqual(564);
-  });
-  */
-  //crashed node ! with normal parser
-  /*
-  it("can parse very large amf files(streaming)", function(){
-    data = fs.readFileSync("specs/data/RoboIce-dual.amf",'binary')
-    parsedAmf = sParser.parse(data);
-    expect(parsedAmf instanceof THREE.Object3D).toBe(true);
-    //expect(parsedAmf.children[0].name).toEqual("Default");
-    expect(parsedAmf.children[0].geometry.vertices.length).toEqual(144590);
-  });*/
-  
+
 });

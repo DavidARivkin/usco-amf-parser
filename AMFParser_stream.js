@@ -4,12 +4,14 @@
  * Description: A THREE loader for AMF files (3d printing, cad, sort of a next gen stl).
  * Features:
  * * supports both zipped and uncompressed amf files
- * * supports almost 100 % of the amf spec : objects, colors, textures, materials , constellations etc
+ * * supports a lot of the amf spec : objects, colors, textures, materials , constellations etc
  *
  * Limitations:
- * 	performance / memory usage is really bad for large files
+ * 	performance / memory usage can peek for large files
  * 	Still some minor issues with color application ordering (see AMF docs)
- * 	
+ * 	No support for composite materials
+ *  No support for math formulas in materials
+ *  No support for curved edges
  *
  * Usage:
  * 	var loader = new THREE.AMFParser();
@@ -22,8 +24,7 @@
  * 	loader.load( './models/amf/slotted_disk.amf' );
  */
 
-//TODO???: add magic number detection to determine if file is a zip file or not
-//see here : http://en.wikipedia.org/wiki/List_of_file_signatures
+
 
 /*AMF SPECS breakdown:
 * 1..N Objects
@@ -65,7 +66,7 @@ THREE.AMFParser = function () {
 	this.defaultColor = new THREE.Color( "#efefff" ); //#efefff //#00a9ff
   this.defaultShading = THREE.FlatShading;
   this.defaultSpecular = null;//0xffffff;
-  this.shininess = null;//99;
+  this.defaultShininess = null;//99;
 
 	this.defaultVertexNormal = new THREE.Vector3( 1, 1, 1 );
 	this.recomputeNormals = true;
@@ -111,6 +112,7 @@ THREE.AMFParser.prototype.parse = function(data, parameters)
   var currentVolume   = null;
   var currentFaceData = null;
   var currentVertex   = null;
+  var currentEdge = null;
 
   var currentTexMap = null;
   var currentTexture = null;
@@ -151,16 +153,17 @@ THREE.AMFParser.prototype.parse = function(data, parameters)
   
     switch(tag.name)
     {
+      //general
       case 'metadata':
         currentMeta = {};
       break;
-
       case 'amf':
         unit = tag.attributes['unit'];
         version = tag.attributes['version'];
         currentItem = rootObject;
       break;
 
+      //geometry
       case 'object':
         currentObject = new THREE.Mesh();
         var id = tag.attributes["id"] || null;
@@ -182,7 +185,9 @@ THREE.AMFParser.prototype.parse = function(data, parameters)
       break;
       case 'triangle':
         currentFaceData = {}
-        //currentTriangle = 
+      break;
+      case 'edge':
+        currentEdge = {};
       break;
 
       //materials and textures
@@ -201,7 +206,6 @@ THREE.AMFParser.prototype.parse = function(data, parameters)
         }
         currentItem = currentTexture;
         console.log("currentTexture",currentTexture);
-        //texture width="256" height="256" type="grayscale" id="1" depth="1" tiled="false"
       break;
 
       //constellation data
@@ -317,7 +321,36 @@ THREE.AMFParser.prototype.parse = function(data, parameters)
       currentFaceData = null;
       currentObject.geometry.faces.push(face);
     }
-    
+
+    if(currentTag.name == "edge")
+    {
+      var v1 = parseText( currentTag.v1.value , "v", "int" , null);
+      var v2 = parseText( currentTag.v2.value , "v", "int" , null);
+
+      var dx1 = parseText( currentTag.dx1.value , "d", "int" , 0);
+      var dy1 = parseText( currentTag.dy1.value , "d", "int" , 0);
+      var dz1 = parseText( currentTag.dz1.value , "d", "int" , 0);
+
+      var dx2 = parseText( currentTag.dx2.value , "d", "int" , 0);
+      var dy2 = parseText( currentTag.dy2.value , "d", "int" , 0);
+      var dz2 = parseText( currentTag.dz2.value , "d", "int" , 0);
+
+      console.log("built edge", v1,dx1, dy1, dz1);
+        /*<edge>
+        <v1>4</v1>
+        <dx1>0.57735</dx1>
+        <dy1>0.57735</dy1>
+        <dz1>-0.57735</dz1>
+        <v2>6</v2>
+        <dx2>0.57735</dx2>
+        <dy2>-0.57735</dy2>
+        <dz2>-0.57735</dz2>
+        </edge>*/
+      currentEdge = null;
+       //higher priority than normals data
+    }
+
+    //materials and textures    
     if(currentTag.name == "material")
     {
         materials[currentMaterial.id] = currentMaterial;
@@ -327,7 +360,6 @@ THREE.AMFParser.prototype.parse = function(data, parameters)
     {
         currentTexture.imgData = currentTag.value;
         textures[currentTexture.id] = scope._parseTexture(currentTexture);
-        console.log("closing texture", textures);
         currentTexture = null;
     }
 
@@ -380,7 +412,7 @@ THREE.AMFParser.prototype.parse = function(data, parameters)
   parser.onend = function () {// parser stream is done, and ready to have more stuff written to it.
     console.log("THE END");
     //scope._generateScene();
-    scope._applyMaterials(materials, meshes,facesThatNeedMaterial);
+    scope._applyMaterials(materials, textures, meshes,facesThatNeedMaterial);
   };
   parser.write(data).close();
 
@@ -435,10 +467,8 @@ THREE.AMFParser.prototype._generateObject = function( object )
 	  object.geometry.computeBoundingBox();
 	  object.geometry.computeBoundingSphere();
 
-    //var color = volumeColor !== null ? volumeColor : new THREE.Color("#ffffff");
-    var color = this.defaultColor ; //new THREE.Color("#ff00ff");
-
-	  var meshMaterial = new this.defaultMaterialType( //THREE.MeshPhongMaterial(
+    var color = this.defaultColor ;
+	  var meshMaterial = new this.defaultMaterialType(
 	  { 
       color: color,
 		  //vertexColors: THREE.VertexColors, //TODO: add flags to dertermine if we need vertex or face colors
@@ -459,24 +489,45 @@ THREE.AMFParser.prototype._generateScene = function ( ){
   return
 }
 
-THREE.AMFParser.prototype._applyMaterials = function(materials, meshes, facesThatNeedMaterial)
+THREE.AMFParser.prototype._applyMaterials = function(materials, textures, meshes, facesThatNeedMaterial)
 {//since materials are usually defined after objects/ volumes, we need to apply
   //materials to those that need them
   for(var i = 0 ; i<facesThatNeedMaterial.length; i++)
   {
-      //facesThatNeedMaterial.push({"matId":currentVolume.materialId,"item": face})
       var curFace = facesThatNeedMaterial[i];
       var mat = materials[curFace.matId];
       curFace.item.color = mat.color;
       curFace.item.vertexColors = [];
       //console.log("curFace",curFace.item);
   }
+
+  /*
+  if(Object.keys(this.textures).length>0)
+	{
+		var materialArray = [];
+		for (var textureIndex in textures)
+		{
+			var texture = this.textures[textureIndex];
+			materialArray.push(new THREE.MeshBasicMaterial({
+				map: texture,
+				color: color,
+				vertexColors: THREE.VertexColors
+				}));
+    }
+    currentMaterial = new THREE.MeshFaceMaterial(materialArray);
+  }*/
 }
 
 THREE.AMFParser.prototype._parseTexture = function ( textureData ){
 	var rawImg = textureData.imgData;
   //'data:image/png;base64,'+
-  //one byte per pixel : how to handle grayscale combos?
+  /*Spec says  : 
+  The data will be encoded string of bytes in Base64 encoding, as grayscale values.
+  Grayscale will be encoded as a string of individual bytes, one per pixel, 
+  specifying the grayscale level in the 0-255 range : 
+  how to handle grayscale combos?*/
+  //Since textures are grayscale, and one per channel (r,g,b), we need to combine all three to get data
+
   /*rawImg = 'iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAALEgAACxIB0t1+/AAAAB90RVh0U29mdHdhcmUATWFjcm9tZWRpYSBGaXJld29ya3MgOLVo0ngAAAAWdEVYdENyZWF0aW9uIFRpbWUAMDUvMjgvMTGdjbKfAAABwklEQVQ4jdXUsWrjQBCA4X+11spikXAEUWdSuUjh5goXx1V5snu4kMLgyoEUgYNDhUHGsiNbCK200hWXFI7iOIEUd9Mu87E7MzsC6PjCcL4S+z/AwXuHQgg8T6GUi+MI2rbDmJqqMnTd26U/CXqeRxD4aO2ilIOUAms7jGkpipr9vqSqqo+BnudxcaEZjRRx7DIeK7SWFIUlSQxpKhkMHLZbemgPFEIQBD6jkeL62mc2u2QyuSIMA/J8z+Pjb+bzNQ8P0DTtedDzFFq7xLHLbHbJzc0PptPv+H5EWWYsl3fALZvNirK05LnCGHMaVOpvzcZjxWRy9Yx9A2J8P2U6hSRJuL/fsFoZhsNjsDc2jiOQUqC1JAwDfD8CYkA/oxFhGKC1REqB44jj/Ndg23ZY21EUljzfU5YZkAIFkFKWGXm+pygs1nbUdXOUL4Gfr5vi+wohBFFk0VoQRQNcN6Msf7Fc3rFYLFksnsiymu22oG3b0zWsKkNR1KSpZD5fA7ckSdLrcprWHA6Gpjm+oeCNbXN+Dmt2O8N6/YS19jz4gp76KYeDYbc79LB3wZdQSjEcKhxHUNcNVVX3nvkp8LPx7+/DP92w3rYV8ocfAAAAAElFTkSuQmCC';*/
 
   if(isNode)
