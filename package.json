@@ -4,7 +4,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "http://github.com/kaosat-dev/CoffeeSCad-kernel.git"
+    "url": "http://github.com/usco/usco-amf-parser.git"
   },
   "main": "AMFParser.js",
   "dependencies": {

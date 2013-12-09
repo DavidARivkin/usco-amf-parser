@@ -1,2 +1,1 @@
-new, cleaned up, three.js based kernel for CoffeeSCad & co
-EXPERIMENTAL : NOTHING TO SEE HERE FOR NOW
+amf (http://en.wikipedia.org/wiki/Additive_Manufacturing_File_Format) format parser for the USCO project
