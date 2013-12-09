@@ -24,8 +24,6 @@
  * 	loader.load( './models/amf/slotted_disk.amf' );
  */
 
-
-
 /*AMF SPECS breakdown:
 * 1..N Objects
 *--->1..1 Mesh 
@@ -51,10 +49,7 @@ Problem !! Materials are defined AFTER volumes
 BUT volumes can reference materials ...
 */
 
-var isNode = 
-    typeof global !== "undefined" && 
-    {}.toString.call(global) == '[object global]';
-
+var isNode = typeof global !== "undefined" && {}.toString.call(global) == '[object global]';
 
 if(isNode) THREE = require( 'three' ); 
 if(isNode) JSZip = require( 'jszip' );
@@ -62,6 +57,8 @@ if(isNode) var sax = require( 'sax' );
 
 
 THREE.AMFParser = function () {
+  this.outputs = ["geometry", "materials", "textures"]; //to be able to auto determine data type(s) fetched by parser
+
   this.defaultMaterialType = THREE.MeshLambertMaterial; //THREE.MeshPhongMaterial;
 	this.defaultColor = new THREE.Color( "#efefff" ); //#efefff //#00a9ff
   this.defaultShading = THREE.FlatShading;
@@ -110,7 +107,7 @@ THREE.AMFParser.prototype.parse = function(data, parameters)
   var currentObject   = null;
   var currentGeometry = null;
   var currentVolume   = null;
-  var currentFaceData = null;
+  var currentTriangle = null;
   var currentVertex   = null;
   var currentEdge = null;
 
@@ -184,7 +181,7 @@ THREE.AMFParser.prototype.parse = function(data, parameters)
         if(materialId) currentVolume.materialId = materialId;
       break;
       case 'triangle':
-        currentFaceData = {}
+        currentTriangle = {}
       break;
       case 'edge':
         currentEdge = {};
@@ -223,167 +220,149 @@ THREE.AMFParser.prototype.parse = function(data, parameters)
   };
   parser.onclosetag = function (tag) {
 
-    if(currentTag.name == "metadata")
+    switch(currentTag.name)
     {
-      if( currentItem )
-      {
-        var varName = currentTag.attributes["type"].toLowerCase();
-        currentItem[varName]= currentTag.value;
-        //console.log("currentItem", currentTag, currentTag.parent)
-      }
-      currentMeta = null;
-    }
+      case "metadata":
+        if( currentItem )
+        {
+          var varName = currentTag.attributes["type"].toLowerCase();
+          currentItem[varName]= currentTag.value;  //console.log("currentItem", currentTag, currentTag.parent)
+        }
+        currentMeta = null;
+      break;
 
+      case "object":
+        scope._generateObject( currentObject );
+        meshes[currentObject._id] = currentObject;
+        rootObject.add(currentObject);
+        currentObject = null;
+      break;
 
-    if(currentTag.name == "object")
-    {
-      scope._generateObject( currentObject );
-      meshes[currentObject._id] = currentObject;
-      rootObject.add(currentObject);
-      currentObject = null;
-    }
-    if(currentTag.name == "coordinates")
-    {
-      var vertexCoords = parseVector3(currentTag);
+      case "coordinates":
+        var vertexCoords = parseVector3(currentTag);
 
-      currentObject.geometry.vertices.push(vertexCoords); 
-      currentObject._attributes["position"].push( vertexCoords );
-    }
+        currentObject.geometry.vertices.push(vertexCoords); 
+        currentObject._attributes["position"].push( vertexCoords );
+      break;
 
-    if(currentTag.name == "normal")
-    {
-      var vertexNormal = parseVector3(currentTag,"n", 1.0);
-      currentObject._attributes["normal"].push( vertexNormal );
-    }
+      case "normal":
+        var vertexNormal = parseVector3(currentTag,"n", 1.0);
+        currentObject._attributes["normal"].push( vertexNormal );
+      break;
 
-    if(currentTag.name == "color")
-    {//WARNING !! color can be used not only inside objects but also materials etc
-     //order(descending): triangle, vertex, volume, object, material
-      var color = parseColor(currentTag);
+      case "color":
+      //WARNING !! color can be used not only inside objects but also materials etc
+       //order(descending): triangle, vertex, volume, object, material
+        var color = parseColor(currentTag);
 
-      if(currentObject && (!currentFaceData)) currentObject._attributes["color"].push( color);
-      if(currentVolume) currentVolume["color"] = color;
-      if(currentFaceData) currentFaceData["color"] = color;
-      if(currentMaterial) currentMaterial["color"] = color;
-    }
+        if(currentObject && (!currentTriangle)) currentObject._attributes["color"].push( color); //vertex level
+        //if(currentObject) currentObject["color"]=  color; //object level
+        if(currentVolume) currentVolume["color"] = color;
+        if(currentTriangle) currentTriangle["color"] = color;
+        if(currentMaterial) currentMaterial["color"] = color;
+      break;
 
-     if(currentTag.name == "map"){
-      for( attrName in currentTag.attributes)
-      {
-        currentTag[attrName] = currentTag.attributes[attrName];
-      }
-      var map = parseMapCoords( currentTag );
-      //console.log("closing map", currentTag);
-    }
+       case "map":
+        for( attrName in currentTag.attributes)
+        {
+          currentTag[attrName] = currentTag.attributes[attrName];
+        }
+        var map = parseMapCoords( currentTag );
+        //console.log("closing map", currentTag);
+      break;
 
-
-    //per volume data (one volume == one three.js mesh)
-    if(currentTag.name == "volume"){
-      currentVolume = null;
-    }
-
-    if(currentTag.name == "triangle")
-    {
-      var v1 = parseText( currentTag.v1.value , "v", "int" , 0);
-      var v2 = parseText( currentTag.v2.value , "v", "int" , 0);
-      var v3 = parseText( currentTag.v3.value , "v", "int" , 0);
-
-      var colorData = currentObject._attributes["color"];
-      if(colorData.length>0)
-      {
-        var colors = [colorData[v1] ,colorData[v2], colorData[v3]];
-      }
-      else
-      {
-        var colors = [defaultColor,defaultColor, defaultColor];
-      }
-      var normalData = currentObject._attributes["normal"];
-      if(normalData.length>0)
-      {
-        var normals = [normalData[v1],normalData[v2],normalData[v3]];
-      }
-      else
-      {
-        var normals = [defaultVertexNormal,defaultVertexNormal, defaultVertexNormal];
-      }
-
-      //a, b, c, normal, color, materialIndex
-      var face = new THREE.Face3( v1, v2, v3 , normals);
-
-      //triangle, vertex, volume, object, material
-      //set default
-      face.color = defaultColor; 
-      if( 'materialId' in currentVolume) facesThatNeedMaterial.push({"matId":currentVolume.materialId,"item": face})
-      if('color' in currentObject) face.color = currentObject["color"];  
-      if('color' in currentVolume) face.color = currentVolume["color"];  
-      if('color' in currentFaceData) face.color = currentFaceData["color"] ;
       
-      currentFaceData = null;
-      currentObject.geometry.faces.push(face);
+      case "volume"://per volume data (one volume == one three.js mesh)
+        currentVolume = null;
+      break;
+
+      case "triangle":
+        var v1 = parseText( currentTag.v1.value , "v", "int" , 0);
+        var v2 = parseText( currentTag.v2.value , "v", "int" , 0);
+        var v3 = parseText( currentTag.v3.value , "v", "int" , 0);
+
+        var colorData = currentObject._attributes["color"];
+        if(colorData.length>0)
+        {
+          var colors = [colorData[v1] ,colorData[v2], colorData[v3]];
+        }
+        else
+        {
+          var colors = [defaultColor,defaultColor, defaultColor];
+        }
+        var normalData = currentObject._attributes["normal"];
+        if(normalData.length>0)
+        {
+          var normals = [normalData[v1],normalData[v2],normalData[v3]];
+        }
+        else
+        {
+          var normals = [defaultVertexNormal,defaultVertexNormal, defaultVertexNormal];
+        }
+
+        //a, b, c, normal, color, materialIndex
+        var face = new THREE.Face3( v1, v2, v3 , normals);
+
+        //triangle, vertex, volume, object, material
+        //set default
+        face.color = defaultColor; 
+        if( 'materialId' in currentVolume) facesThatNeedMaterial.push({"matId":currentVolume.materialId,"item": face})
+        if('color' in currentObject) face.color = currentObject["color"];  
+        if('color' in currentVolume) face.color = currentVolume["color"];  
+        if('color' in currentTriangle) face.color = currentTriangle["color"] ;
+        
+        currentTriangle = null;
+        currentObject.geometry.faces.push(face);
+      break;
+
+      case "edge":
+        //Specifies the 3D tangent of an object edge between two vertices 
+        //higher priority than normals data
+        var v1 = parseText( currentTag.v1.value , "v", "int" , null);
+        var v2 = parseText( currentTag.v2.value , "v", "int" , null);
+
+        var dx1 = parseText( currentTag.dx1.value , "d", "int" , 0);
+        var dy1 = parseText( currentTag.dy1.value , "d", "int" , 0);
+        var dz1 = parseText( currentTag.dz1.value , "d", "int" , 0);
+
+        var dx2 = parseText( currentTag.dx2.value , "d", "int" , 0);
+        var dy2 = parseText( currentTag.dy2.value , "d", "int" , 0);
+        var dz2 = parseText( currentTag.dz2.value , "d", "int" , 0);
+
+        console.log("built edge v1", v1,dx1, dy1, dz1 ,"v2",v2,dx2, dy2, dz2);
+        currentEdge = null;
+      break;
+
+      //materials and textures    
+      case "material":
+          materials[currentMaterial.id] = currentMaterial;
+          currentMaterial = null;
+      break;
+      case "texture":
+          currentTexture.imgData = currentTag.value;
+          textures[currentTexture.id] = scope._parseTexture(currentTexture);
+          currentTexture = null;
+      break;
+      //constellation
+      case "constellation":
+          rootObject = currentConstellation;//FIXME: this is a hack
+          currentConstellation = null;
+      break;
+      case "instance":
+          var position = parseVector3(currentTag, "delta",0.0);
+          var rotation = parseVector3(currentTag, "r", 1.0);
+
+          var objectId= currentObjectInstance.id;
+          var meshInstance = meshes[objectId].clone();
+			    meshInstance.position.add(position);
+				  meshInstance.rotation.set(rotation.x,rotation.y,rotation.z); 
+        
+          currentConstellation.add(meshInstance);
+          currentObjectInstance = null;
+          //console.log("closing instance",objectId, "posOffset",position,"rotOffset",rotation);
+      break;
+
     }
-
-    if(currentTag.name == "edge")
-    {
-      var v1 = parseText( currentTag.v1.value , "v", "int" , null);
-      var v2 = parseText( currentTag.v2.value , "v", "int" , null);
-
-      var dx1 = parseText( currentTag.dx1.value , "d", "int" , 0);
-      var dy1 = parseText( currentTag.dy1.value , "d", "int" , 0);
-      var dz1 = parseText( currentTag.dz1.value , "d", "int" , 0);
-
-      var dx2 = parseText( currentTag.dx2.value , "d", "int" , 0);
-      var dy2 = parseText( currentTag.dy2.value , "d", "int" , 0);
-      var dz2 = parseText( currentTag.dz2.value , "d", "int" , 0);
-
-      console.log("built edge", v1,dx1, dy1, dz1);
-        /*<edge>
-        <v1>4</v1>
-        <dx1>0.57735</dx1>
-        <dy1>0.57735</dy1>
-        <dz1>-0.57735</dz1>
-        <v2>6</v2>
-        <dx2>0.57735</dx2>
-        <dy2>-0.57735</dy2>
-        <dz2>-0.57735</dz2>
-        </edge>*/
-      currentEdge = null;
-       //higher priority than normals data
-    }
-
-    //materials and textures    
-    if(currentTag.name == "material")
-    {
-        materials[currentMaterial.id] = currentMaterial;
-        currentMaterial = null;
-     }
-    if(currentTag.name == "texture")
-    {
-        currentTexture.imgData = currentTag.value;
-        textures[currentTexture.id] = scope._parseTexture(currentTexture);
-        currentTexture = null;
-    }
-
-    //constellation
-    if(currentTag.name == "constellation")
-    {
-        rootObject = currentConstellation;//FIXME: this is a hack
-        currentConstellation = null;
-    }
-    if(currentTag.name == "instance")
-    {
-        var position = parseVector3(currentTag, "delta",0.0);
-        var rotation = parseVector3(currentTag, "r", 1.0);
-
-        var objectId= currentObjectInstance.id;
-        var meshInstance = meshes[objectId].clone();
-			  meshInstance.position.add(position);
-				meshInstance.rotation.set(rotation.x,rotation.y,rotation.z); 
-      
-        currentConstellation.add(meshInstance);
-        currentObjectInstance = null;
-        //console.log("closing instance",objectId, "posOffset",position,"rotOffset",rotation);
-    }
-
     currentItem = null;
     if (currentTag && currentTag.parent) {
       var p = currentTag.parent
@@ -650,6 +629,5 @@ THREE.AMFParser.prototype._parseTexture = function ( textureData ){
   {//This is for "maths" expression for materials, colors etc :TODO: implement
 
   }
-
 
 if (isNode) module.exports = THREE.AMFParser;

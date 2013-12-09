@@ -25,7 +25,7 @@ describe("AMF parser tests", function() {
   */
 
   //STREAMING parser
-  /*
+
   it("can parse uncompressed amf files with vertex normals (streaming)", function() {
     data = fs.readFileSync("specs/data/Sphere20Face.amf",'binary')
     parsedAmf = sParser.parse(data);
@@ -40,9 +40,9 @@ describe("AMF parser tests", function() {
     expect(parsedAmf instanceof THREE.Object3D).toBe(true);
     expect(parsedAmf.children[0].geometry.vertices.length).toEqual(8);
     expect(parsedAmf.children[0].geometry.faces.length).toEqual(12);
-  });*/
+  });
 
-  /*it("can parse uncompressed amf files with face colors (streaming)", function() {
+  it("can parse uncompressed amf files with face colors (streaming)", function() {
     data = fs.readFileSync("specs/data/FaceColors.amf",'binary')
     parsedAmf = sParser.parse(data);
     expect(parsedAmf instanceof THREE.Object3D).toBe(true);
@@ -76,8 +76,7 @@ describe("AMF parser tests", function() {
     expect(parsedAmf.children[1].position.y).toEqual(10);
     expect(parsedAmf.children[1].rotation.z).toEqual(180);
   });
- */
-  /*
+
   it("can parse uncompressed, larger amf files  (streaming)", function() {
     data = fs.readFileSync("specs/data/Rook.amf",'binary')
     parsedAmf = sParser.parse(data);
@@ -92,7 +91,7 @@ describe("AMF parser tests", function() {
     expect(parsedAmf instanceof THREE.Object3D).toBe(true);
     expect(parsedAmf.children[0].geometry.vertices.length).toEqual(564);
   });
-
+/*
   //crashes node with normal parser: now it takes about 30 secs
   it("can parse very large amf files(streaming)", function(){
     data = fs.readFileSync("specs/data/RoboIce-dual.amf",'binary')
@@ -103,18 +102,18 @@ describe("AMF parser tests", function() {
   });
 */
 
-
+  /*
   //TODO: incompletes after this point
   it("can parse uncompressed amf files with edges (streaming)", function() {
     //TODO: find correct way to test texture parsing
     data = fs.readFileSync("specs/data/CurveEdgeTest.amf",'binary')
     parsedAmf = sParser.parse(data);
     expect(parsedAmf instanceof THREE.Object3D).toBe(true);
-    expect(parsedAmf.children[0].geometry.vertices.length).toEqual(8);
+    expect(parsedAmf.children[0].geometry.vertices.length).toEqual(12);
     expect(parsedAmf.children[0].geometry.faces.length).toEqual(12);
   });
 
-  /*
+  
   it("can parse uncompressed amf files with textures (streaming)", function() {
     //TODO: find correct way to test texture parsing
     data = fs.readFileSync("specs/data/Amf_Cube.amf",'binary')
