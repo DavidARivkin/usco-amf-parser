@@ -49,11 +49,10 @@ Problem !! Materials are defined AFTER volumes
 BUT volumes can reference materials ...
 */
 
-var isNode = typeof global !== "undefined" && {}.toString.call(global) == '[object global]';
+var detectEnv = require("composite-detect");
 
-if(isNode) THREE = require( 'three' ); 
-if(isNode) JSZip = require( 'jszip' );
-if(isNode) var sax = require( 'sax' );
+if(detectEnv.isModule) JSZip = require( 'jszip' );
+if(detectEnv.isModule) var sax = require( 'sax' );
 
 
 THREE.AMFParser = function () {
@@ -509,7 +508,7 @@ THREE.AMFParser.prototype._parseTexture = function ( textureData ){
 
   /*rawImg = 'iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAALEgAACxIB0t1+/AAAAB90RVh0U29mdHdhcmUATWFjcm9tZWRpYSBGaXJld29ya3MgOLVo0ngAAAAWdEVYdENyZWF0aW9uIFRpbWUAMDUvMjgvMTGdjbKfAAABwklEQVQ4jdXUsWrjQBCA4X+11spikXAEUWdSuUjh5goXx1V5snu4kMLgyoEUgYNDhUHGsiNbCK200hWXFI7iOIEUd9Mu87E7MzsC6PjCcL4S+z/AwXuHQgg8T6GUi+MI2rbDmJqqMnTd26U/CXqeRxD4aO2ilIOUAms7jGkpipr9vqSqqo+BnudxcaEZjRRx7DIeK7SWFIUlSQxpKhkMHLZbemgPFEIQBD6jkeL62mc2u2QyuSIMA/J8z+Pjb+bzNQ8P0DTtedDzFFq7xLHLbHbJzc0PptPv+H5EWWYsl3fALZvNirK05LnCGHMaVOpvzcZjxWRy9Yx9A2J8P2U6hSRJuL/fsFoZhsNjsDc2jiOQUqC1JAwDfD8CYkA/oxFhGKC1REqB44jj/Ndg23ZY21EUljzfU5YZkAIFkFKWGXm+pygs1nbUdXOUL4Gfr5vi+wohBFFk0VoQRQNcN6Msf7Fc3rFYLFksnsiymu22oG3b0zWsKkNR1KSpZD5fA7ckSdLrcprWHA6Gpjm+oeCNbXN+Dmt2O8N6/YS19jz4gp76KYeDYbc79LB3wZdQSjEcKhxHUNcNVVX3nvkp8LPx7+/DP92w3rYV8ocfAAAAAElFTkSuQmCC';*/
 
-  if(isNode)
+  if(detectEnv.isNode)
   {
     function btoa(str) {
       var buffer;
@@ -630,4 +629,4 @@ THREE.AMFParser.prototype._parseTexture = function ( textureData ){
 
   }
 
-if (isNode) module.exports = THREE.AMFParser;
+if (detectEnv.isModule) module.exports = THREE.AMFParser;

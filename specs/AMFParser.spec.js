@@ -1,10 +1,9 @@
-AMFParser = require("../AMFParser");
-AMFStreamingParser = require("../AMFParser_stream");
 THREE = require("three");
+AMFStreamingParser = require("../AMFParser_stream");
 fs = require("fs");
 
 describe("AMF parser tests", function() {
-  var parser = new AMFParser();
+  //var parser = new AMFParser();
   var sParser = new AMFStreamingParser();
 
   /*
