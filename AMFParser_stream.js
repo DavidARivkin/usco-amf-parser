@@ -134,9 +134,9 @@ THREE.AMFParser.prototype.parse = function(data, parameters)
   var textures = {};
   var materials = {};
 
-  if ( useWorker ) {
+  /*if ( useWorker ) {
     var worker = new Worker( "AMFWorker.js" );
-  }
+  }*/
 
   //////////////
   var scope = this;  
