@@ -14,7 +14,7 @@
  *  No support for curved edges
  *
  * Usage:
- * 	var loader = new THREE.AMFParser();
+ * 	var loader = new AMFParser();
  * 	loader.addEventListener( 'load', function ( event ) {
  *
  * 		var geometry = event.content;
@@ -51,11 +51,12 @@ BUT volumes can reference materials ...
 
 var detectEnv = require("composite-detect");
 
-if(detectEnv.isModule) JSZip = require( 'jszip' );
+if(detectEnv.isModule) var THREE = require("three");
+if(detectEnv.isModule) var JSZip = require( 'jszip' );
 if(detectEnv.isModule) var sax = require( 'sax' );
 
 
-THREE.AMFParser = function () {
+AMFParser = function () {
   this.outputs = ["geometry", "materials", "textures"]; //to be able to auto determine data type(s) fetched by parser
 
   this.defaultMaterialType = THREE.MeshLambertMaterial; //THREE.MeshPhongMaterial;
@@ -68,11 +69,11 @@ THREE.AMFParser = function () {
 	this.recomputeNormals = true;
 };
 
-THREE.AMFParser.prototype = {
-	constructor: THREE.AMFParser
+AMFParser.prototype = {
+	constructor: AMFParser
 };
 
-THREE.AMFParser.prototype.parse = function(data, parameters)
+AMFParser.prototype.parse = function(data, parameters)
 {
   var parameters = parameters || {};
   var useWorker  = parameters.useWorker || false;
@@ -406,7 +407,7 @@ THREE.AMFParser.prototype.parse = function(data, parameters)
   return rootObject;
 }
 
-THREE.AMFParser.prototype.unpack = function( data )
+AMFParser.prototype.unpack = function( data )
 {
   try
   {
@@ -420,7 +421,7 @@ THREE.AMFParser.prototype.unpack = function( data )
   catch(error){return this.ensureString(data);}
 }
 
-THREE.AMFParser.prototype.ensureString = function (buf) {
+AMFParser.prototype.ensureString = function (buf) {
 
 	if (typeof buf !== "string"){
 		var array_buffer = new Uint8Array(buf);
@@ -434,7 +435,7 @@ THREE.AMFParser.prototype.ensureString = function (buf) {
 	}
 };
 
-THREE.AMFParser.prototype._generateObject = function( object )
+AMFParser.prototype._generateObject = function( object )
 {
     if(this.recomputeNormals)
 	  {
@@ -460,14 +461,14 @@ THREE.AMFParser.prototype._generateObject = function( object )
     //console.log("finished Object / THREE.Mesh",currentObject)
 }
 
-THREE.AMFParser.prototype._generateScene = function ( ){
+AMFParser.prototype._generateScene = function ( ){
   console.log("generating scene");
   // if there is constellation data, don't just add meshes to the scene, but use 
 	//the info from constellation to do so (additional transforms)
   return
 }
 
-THREE.AMFParser.prototype._applyMaterials = function(materials, textures, meshes, facesThatNeedMaterial)
+AMFParser.prototype._applyMaterials = function(materials, textures, meshes, facesThatNeedMaterial)
 {//since materials are usually defined after objects/ volumes, we need to apply
   //materials to those that need them
   for(var i = 0 ; i<facesThatNeedMaterial.length; i++)
@@ -496,7 +497,7 @@ THREE.AMFParser.prototype._applyMaterials = function(materials, textures, meshes
   }*/
 }
 
-THREE.AMFParser.prototype._parseTexture = function ( textureData ){
+AMFParser.prototype._parseTexture = function ( textureData ){
 	var rawImg = textureData.imgData;
   //'data:image/png;base64,'+
   /*Spec says  : 
@@ -629,4 +630,4 @@ THREE.AMFParser.prototype._parseTexture = function ( textureData ){
 
   }
 
-if (detectEnv.isModule) module.exports = THREE.AMFParser;
+if (detectEnv.isModule) module.exports = AMFParser;

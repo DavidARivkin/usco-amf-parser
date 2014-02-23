@@ -10,11 +10,11 @@
   "dependencies": {
     "jszip": "~0.2.1",
     "xmldom": "~0.1.16",
-    "sax": "~0.5.7"
+    "sax": "~0.5.7",
+    "three-js": "git://github.com/usco/three.js.git"
   },
   "devDependencies": {
     "jasmine-node": "",
-    "three": "~0.58.10",
     "composite-detect": "0.0.3"
   },
   "scripts": {

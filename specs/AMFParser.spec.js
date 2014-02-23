@@ -1,10 +1,10 @@
 THREE = require("three");
-AMFStreamingParser = require("../AMFParser_stream");
+AMFParser = require("../amf-parser");
 fs = require("fs");
 
 describe("AMF parser tests", function() {
   //var parser = new AMFParser();
-  var sParser = new AMFStreamingParser();
+  var sParser = new AMFParser();
 
   /*
   it("can parse compressed amf files", function() {
