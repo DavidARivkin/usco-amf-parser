@@ -6,8 +6,9 @@
     "type": "git",
     "url": "http://github.com/usco/usco-amf-parser.git"
   },
-  "main": "AMFParser.js",
+  "main": "amf-parser.js",
   "dependencies": {
+    "composite-detect": "0.0.3",
     "jszip": "~0.2.1",
     "xmldom": "~0.1.16",
     "sax": "~0.5.7",
@@ -15,7 +16,10 @@
   },
   "devDependencies": {
     "jasmine-node": "",
-    "composite-detect": "0.0.3"
+    "grunt": "~0.4.2",
+    "grunt-browserify": "~1.2.12",
+    "workerify": "~0.2.3",
+    "grunt-bump": "0.0.13"
   },
   "scripts": {
     "test": "jasmine-node specs/"

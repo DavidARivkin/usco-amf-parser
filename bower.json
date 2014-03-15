@@ -6,7 +6,8 @@
     "jszip": "calvinmetcalf/jszip#two-point-more"
   },
   "ignore": [
-    "index.js",
+    "./amf-parser.js",
+    "./AMFParser_old.js",
     "jszip-load.js",
     "jszip-inflate.js",
     "jszip.js",
