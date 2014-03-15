@@ -51,7 +51,8 @@ BUT volumes can reference materials ...
 
 var detectEnv = require("composite-detect");
 
-if(detectEnv.isModule) var THREE = require("three");
+if(detectEnv.isNode) var THREE = require("three");
+if(detectEnv.isBrowser) var THREE = window.THREE;
 if(detectEnv.isModule) var JSZip = require( 'jszip' );
 if(detectEnv.isModule) var sax = require( 'sax' );
 
