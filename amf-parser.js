@@ -55,12 +55,12 @@ if(detectEnv.isNode) var THREE = require("three");
 if(detectEnv.isBrowser) var THREE = window.THREE;
 if(detectEnv.isModule) var JSZip = require( 'jszip' );
 if(detectEnv.isModule) var sax = require( 'sax' );
-
+if(detectEnv.isModule) var Q = require('q');
 
 AMFParser = function () {
   this.outputs = ["geometry", "materials", "textures"]; //to be able to auto determine data type(s) fetched by parser
 
-  this.defaultMaterialType = THREE.MeshLambertMaterial; //THREE.MeshPhongMaterial;
+  this.defaultMaterialType = THREE.MeshPhongMaterial;//THREE.MeshLambertMaterial; //
 	this.defaultColor = new THREE.Color( "#efefff" ); //#efefff //#00a9ff
   this.defaultShading = THREE.FlatShading;
   this.defaultSpecular = null;//0xffffff;
@@ -79,11 +79,9 @@ AMFParser.prototype.parse = function(data, parameters)
   var parameters = parameters || {};
   var useWorker  = parameters.useWorker || false;
   var useBuffers = parameters.useBuffers || false;
+  
+  var deferred = Q.defer();  
 
-  /*if( root.nodeName !== "amf")
-	{
-		throw("Unvalid AMF document, should have a root node called 'amf'");
-	}*/
   var startTime = new Date();
 
   var data = this.unpack(data);
@@ -99,7 +97,6 @@ AMFParser.prototype.parse = function(data, parameters)
 
   var currentTag = null;
   var currentItem = null;//pointer to currently active item/tag etc
-
 
   var currentColor = null;
   //
@@ -405,7 +402,10 @@ AMFParser.prototype.parse = function(data, parameters)
   //TODO:should return multiple datas (parts == model/mesh)
   //return {materials:{}, parts:"",}
 
-  return rootObject;
+  //return rootObject;
+  deferred.resolve( rootObject );
+  
+  return deferred;
 }
 
 AMFParser.prototype.unpack = function( data )
@@ -441,11 +441,11 @@ AMFParser.prototype._generateObject = function( object )
     if(this.recomputeNormals)
 	  {
 		  //TODO: only do this, if no normals were specified???
-		  object.geometry.computeFaceNormals();
-		  object.geometry.computeVertexNormals();
+		  //object.geometry.computeFaceNormals();
+		  //object.geometry.computeVertexNormals();
 	  }
-	  object.geometry.computeBoundingBox();
-	  object.geometry.computeBoundingSphere();
+	  //object.geometry.computeBoundingBox();
+	  //object.geometry.computeBoundingSphere();
 
     var color = this.defaultColor ;
 	  var meshMaterial = new this.defaultMaterialType(
