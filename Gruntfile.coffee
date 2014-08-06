@@ -8,7 +8,7 @@ module.exports = (grunt) ->
         src: ["./amf-parser.js"]
         dest: "lib/amf-parser.js"
         options:
-          transform: ["workerify"]
+          transform: ["browserify-shader","workerify"]
           external: ["composite-detect","three","jszip","q"]
           alias: ["./amf-parser.js:amf-parser"]
     bump:

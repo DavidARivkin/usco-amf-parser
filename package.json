@@ -12,13 +12,14 @@
     "jszip": "~0.2.1",
     "xmldom": "~0.1.16",
     "sax": "~0.5.7",
-    "three-js": "git://github.com/usco/three.js.git"
+    "three-js": "git://github.com/usco/three.js.git",
+    "browserify-shader": "0.0.2"
   },
   "devDependencies": {
     "jasmine-node": "",
     "grunt": "~0.4.2",
     "grunt-browserify": "~1.2.12",
-    "workerify": "~0.2.3",
+    "workerify": "git://github.com/shama/workerify",
     "grunt-bump": "0.0.13"
   },
   "scripts": {
