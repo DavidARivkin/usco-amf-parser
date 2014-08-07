@@ -23,26 +23,18 @@ var AMF = function () {
 }
 
 AMF.prototype.load = function( data, callback ){
-  var data = this.unpack(data);
-  console.log("done unpacking data");
-  var parser = sax.parser(true,{trim:true}); // set first param to false for html-mode
-  this.setupSax( parser );
-  console.log("sax parser setup ok");
-  
-  function wait(ms) {
-    var start = +(new Date());
-    while (new Date() - start < ms);
-}
-  
-  var l = data.length, lc = 0, c = 0, chunkSize = l;
-  /*for (; lc < l; c++) {
-    var chunk = data.slice(lc, lc += chunkSize);
-    parser.write( chunk ).close();
-    wait(1);
-  }*/
-  var chunk = "" 
   
   var self = this;
+  function foo( data )
+  {
+    console.log("done unpacking data");
+    var parser = sax.parser(true,{trim:true}); // set first param to false for html-mode
+    self.setupSax( parser );
+    console.log("sax parser setup ok");
+    
+    var l = data.length, lc = 0, c = 0, chunkSize = l;
+    var chunk = "" 
+  
   parser.onready= function (tag) {
     console.log("parser ready again");  
     if( lc<l)
@@ -64,34 +56,13 @@ AMF.prototype.load = function( data, callback ){
     }
   }
   
-  
-  
-  /*parser.onend= function (tag) {
-    console.log("parser ready again");  
-    if( lc<l)
-    {
-      chunk = data.slice(lc, lc += chunkSize);
-      parser.write( chunk ).close();
-    }
-    else
-    {
-      if(callback)
-      {
-        console.log("DONE PARSING, result:",self.resultContainer); 
-  
-        self.resultContainer.meshes = self.meshes;
-        self.resultContainer.textures = self.textures;
-        self.resultContainer.materials = self.materials;
-        self.resultContainer.constellations = self.constellations;
-        
-        callback( self.resultContainer );
-      }
-    }
-  }*/
-  
   chunk = data.slice(lc, lc += chunkSize);
   parser.write( chunk ).close();
   
+  }
+  
+  console.log("before unpack");
+  var data = this.unpack(data, foo);
   //parser.write(data).close();
   /*console.log("DONE PARSING, result:",this.resultContainer); 
   
@@ -103,7 +74,7 @@ AMF.prototype.load = function( data, callback ){
   return this.resultContainer;*/
 }
 
-AMF.prototype.unpack = function( data )
+AMF.prototype.unpack = function( data, callback )
 {
   try
   {
@@ -112,13 +83,28 @@ AMF.prototype.unpack = function( data )
     {
       var entry = zip.files[entryName];
       if( entry._data !== null && entry !== undefined) 
+      {
       
-      var result = entry.asText();
-      zip =null;
-      return result;
-   }
+        /*var result = entry.asText();
+        return result;*/
+        var ab = entry.asArrayBuffer();
+        var blob = new Blob([ab]);
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            var txt = e.target.result;
+            console.log( "good text", txt);
+            callback( txt );
+        };
+        reader.readAsText(blob);
+      
+      }
+      
+    }
   }
-  catch(error){zip=null;return this.ensureString(data);}
+  catch(error){
+  //return this.ensureString(data);
+    callback( this.ensureString(data) );
+  }
 }
 
 AMF.prototype.ensureString = function (buf) {
@@ -478,7 +464,7 @@ AMF.prototype.setupSax = function( parser )
   parser.onerror = function(error)
   { 
       console.log("error in parser")
-      console.log(error);
+      //console.log(error);
       //throw error;
       parser.resume();
   }
