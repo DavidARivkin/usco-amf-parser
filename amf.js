@@ -22,20 +22,85 @@ var AMF = function () {
   this.resultContainer = {};
 }
 
-AMF.prototype.load = function( data ){
+AMF.prototype.load = function( data, callback ){
   var data = this.unpack(data);
+  console.log("done unpacking data");
   var parser = sax.parser(true,{trim:true}); // set first param to false for html-mode
   this.setupSax( parser );
   console.log("sax parser setup ok");
-  parser.write(data).close();
-  console.log("DONE PARSING, result:",this.resultContainer); 
+  
+  function wait(ms) {
+    var start = +(new Date());
+    while (new Date() - start < ms);
+}
+  
+  var l = data.length, lc = 0, c = 0, chunkSize = l;
+  /*for (; lc < l; c++) {
+    var chunk = data.slice(lc, lc += chunkSize);
+    parser.write( chunk ).close();
+    wait(1);
+  }*/
+  var chunk = "" 
+  
+  var self = this;
+  parser.onready= function (tag) {
+    console.log("parser ready again");  
+    if( lc<l)
+    {
+      chunk = data.slice(lc, lc += chunkSize);
+      parser.write( chunk ).close();
+    }
+    else
+    {
+      if(callback)
+      {
+        self.resultContainer.meshes = self.meshes;
+        self.resultContainer.textures = self.textures;
+        self.resultContainer.materials = self.materials;
+        self.resultContainer.constellations = self.constellations;
+        console.log("DONE PARSING, result:",self.resultContainer); 
+        callback( self.resultContainer );
+      }
+    }
+  }
+  
+  
+  
+  /*parser.onend= function (tag) {
+    console.log("parser ready again");  
+    if( lc<l)
+    {
+      chunk = data.slice(lc, lc += chunkSize);
+      parser.write( chunk ).close();
+    }
+    else
+    {
+      if(callback)
+      {
+        console.log("DONE PARSING, result:",self.resultContainer); 
+  
+        self.resultContainer.meshes = self.meshes;
+        self.resultContainer.textures = self.textures;
+        self.resultContainer.materials = self.materials;
+        self.resultContainer.constellations = self.constellations;
+        
+        callback( self.resultContainer );
+      }
+    }
+  }*/
+  
+  chunk = data.slice(lc, lc += chunkSize);
+  parser.write( chunk ).close();
+  
+  //parser.write(data).close();
+  /*console.log("DONE PARSING, result:",this.resultContainer); 
   
   this.resultContainer.meshes = this.meshes;
   this.resultContainer.textures = this.textures;
   this.resultContainer.materials = this.materials;
   this.resultContainer.constellations = this.constellations;
   
-  return this.resultContainer;
+  return this.resultContainer;*/
 }
 
 AMF.prototype.unpack = function( data )
@@ -46,10 +111,14 @@ AMF.prototype.unpack = function( data )
     for(var entryName in zip.files)
     {
       var entry = zip.files[entryName];
-      if( entry._data !== null && entry !== undefined) return entry.asText();
+      if( entry._data !== null && entry !== undefined) 
+      
+      var result = entry.asText();
+      zip =null;
+      return result;
    }
   }
-  catch(error){return this.ensureString(data);}
+  catch(error){zip=null;return this.ensureString(data);}
 }
 
 AMF.prototype.ensureString = function (buf) {
@@ -173,7 +242,6 @@ AMF.prototype.setupSax = function( parser )
         currentObject.faceCount = 0;
 
         currentItem = currentObject;
-        console.log("currentObject",currentObject);
       break;
       case 'volume':
         currentVolume = {};
@@ -207,11 +275,11 @@ AMF.prototype.setupSax = function( parser )
 
       //constellation data
       case 'constellation':
-        //currentConstellation = new THREE.Object3D();
         currentConstellation = {};
         currentConstellation.children=[];
         var id = tag.attributes["id"] || null;
         if(id) currentConstellation._id = id;
+        console.log("constellation");
       break;
       case 'instance':
         currentObjectInstance = {};
@@ -221,7 +289,6 @@ AMF.prototype.setupSax = function( parser )
     }
   };
   parser.onclosetag = function (tag) {
-    console.log("this", scope);
     switch(currentTag.name)
     {
       case "metadata":
@@ -237,11 +304,14 @@ AMF.prototype.setupSax = function( parser )
         scope._generateObject( currentObject );
         meshes[currentObject._id] = currentObject;
         rootObject.children.push(currentObject);
-        currentObject = null;
-        
         scope.meshes.push( currentObject );
+        console.log("object done");
+        currentObject = null;
       break;
 
+      case "mesh":
+        console.log("mesh done");
+      break;
       case "coordinates":
         var vertexCoords = parseVector3(currentTag);
         //currentObject.geometry.vertices.push(vertexCoords); 
@@ -335,6 +405,7 @@ AMF.prototype.setupSax = function( parser )
       break;
 
       case "edge":
+        console.log("getting edge data");
         //Specifies the 3D tangent of an object edge between two vertices 
         //higher priority than normals data
         var v1 = parseText( currentTag.v1.value , "v", "int" , null);
@@ -354,18 +425,20 @@ AMF.prototype.setupSax = function( parser )
 
       //materials and textures    
       case "material":
+          console.log("getting material data");
           materials[currentMaterial.id] = currentMaterial;
           currentMaterial = null;
       break;
       case "texture":
+          console.log("getting texture data");
           currentTexture.imgData = currentTag.value;
           textures[currentTexture.id] = scope._parseTexture(currentTexture);
           currentTexture = null;
       break;
       //constellation
       case "constellation":
-          //rootObject = currentConstellation;//FIXME: this is a hack
           scope.constellations.push( currentConstellation );
+          console.log("done with constellation");
           currentConstellation = null;
       break;
       case "instance":
@@ -373,7 +446,6 @@ AMF.prototype.setupSax = function( parser )
           var rotation = parseVector3(currentTag, "r", 1.0);
 
           var objectId= currentObjectInstance.id;
-          console.log(meshes);
           var meshInstance = meshes[objectId] //.clone();
 			    //meshInstance.position.add(position);
 				  //meshInstance.rotation.set(rotation.x,rotation.y,rotation.z); 
@@ -405,15 +477,17 @@ AMF.prototype.setupSax = function( parser )
 
   parser.onerror = function(error)
   { 
-      console.log("error in parser",error);
-      throw error;
+      console.log("error in parser")
+      console.log(error);
+      //throw error;
+      parser.resume();
   }
 
-  parser.onend = function () {// parser stream is done, and ready to have more stuff written to it.
+  /*parser.onend = function () {// parser stream is done, and ready to have more stuff written to it.
     console.log("THE END");
     //scope._generateScene();
-    scope._applyMaterials(materials, textures, meshes,facesThatNeedMaterial);
-  };
+    //scope._applyMaterials(materials, textures, meshes,facesThatNeedMaterial);
+  };*/
 }
 
 AMF.prototype._applyMaterials = function(materials, textures, meshes, facesThatNeedMaterial)
@@ -480,8 +554,7 @@ AMF.prototype._applyMaterials = function(materials, textures, meshes, facesThatN
 		var r = parseText( node.r.value , "float",1.0);
 		var g = parseText( node.g.value , "float", 1.0);
 		var b = parseText( node.b.value , "float", 1.0);
-		var a = parseText( node.a.value , "float", 1.0);
-		//var color = new THREE.Color().setRGB( r, g, b );
+	  var a = ("a" in node) ? parseText( node.a.value , "float", 1.0) : 1.0;
     var color = [r,g,b,a];
 		return color;
 	}

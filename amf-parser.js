@@ -93,19 +93,54 @@ AMFParser.prototype.parse = function(data, parameters)
     - generate materials             from raw data's materials list
     - generate final assembly(ies)
   */
-  useWorker = false;
+  //useWorker = false;
   var self = this;
   var startTime = new Date();
   var s = Date.now();
+  console.log("in amf parser");
+  
+  
+  
+      function onDataLoaded( data )
+    {
+      if(data.constellations.length<1)
+      {
+        for(var i=0;i<data.meshes.length;i++)
+        {
+          var modelData = data.meshes[i];
+          var model = self.createModelBuffers( modelData );
+				  rootObject.add( model );
+        }
+      }
+      else
+      {
+        //TODO:recurse through constellation
+        for(var i=0;i<data.constellations[0].children.length;i++)
+        {
+          var child = data.constellations[0].children[i];
+          var modelData = child.instance;
+          var model = self.createModelBuffers( modelData );
+          model.position.fromArray( child.pos );
+				  model.rotation.set(child.rot[0],child.rot[1],child.rot[2]); 
+				  rootObject.add( model );
+        }
+      }
+    deferred.resolve( rootObject );
+    }
+  
+  
 	if ( useWorker ) {
 	  var worker = new Worker( "./amf-worker.js" );
 		worker.onmessage = function( event ) {
-		  console.log("data recieved in main thread", event.data.data);
+		  console.log("data recieved in main thread");//, event.data.data);
 	    var data = event.data.data;
-	    //var model = self.createModelBuffers( data );
-	    var result = this.recurse( data, rootObject, this.createModelBuffers);
+
+      onDataLoaded( data );
+
+	    //var result = this.recurse( data, rootObject, this.createModelBuffers);
       deferred.resolve( rootObject );
 		}
+		console.log("sending data to worker");
 		worker.postMessage( {data:data});
 		Q.catch( deferred.promise, function(){
 		  worker.terminate()
@@ -115,27 +150,7 @@ AMFParser.prototype.parse = function(data, parameters)
 	else
 	{
 	  var amf = new AMF();
-    data = amf.load( data );
-    if(data.constellations.length<1)
-    {
-    
-    }
-    else
-    {
-      //TODO:recurse through constellation
-      for(var i=0;i<data.constellations[0].children.length;i++)
-      {
-        var child = data.constellations[0].children[i];
-        var modelData = child.instance;
-        var model = this.createModelBuffers( modelData );
-        //var position = new THREE.Vector3()
-        model.position.fromArray( child.pos );
-				model.rotation.set(child.rot[0],child.rot[1],child.rot[2]); 
-				rootObject.add( model );
-      }
-    }
-    //var model = this.createModelBuffers( data );
-    deferred.resolve( rootObject );
+    amf.load( data, onDataLoaded );
   }
   return deferred;
 }
