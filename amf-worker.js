@@ -10,9 +10,13 @@ self.onmessage = function( event ) {
   {
     console.log("parsed data", parsedData);
     self.postMessage( {data:parsedData});//, [parsedData]);
-	  self.close();
-	}
-  amf.load( data,callback );
+    self.close();
+  }
+  function progress( data )
+  {
+    self.postMessage( data );
+  }
+  amf.load( data,callback,progress );
 
   /*var vertices = result.vertices.buffer;
   self.postMessage( {vertices:vertices, normals:normals}, [vertices,normals] );*/

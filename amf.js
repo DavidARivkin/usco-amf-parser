@@ -15,19 +15,27 @@ var AMF = function () {
   this.rootObject.children = [];
   this.currentObject = {};
   
+  this.materialsById = {};
+  
   this.meshes = [];
+  this.objects = [];
   this.textures = [];
   this.materials = [];
   this.constellations = [];
   this.resultContainer = {};
 }
 
-AMF.prototype.load = function( data, callback ){
+AMF.prototype.load = function( data, callback, progressCallback ){
   
   var self = this;
   function foo( data )
   {
     console.log("done unpacking data");
+    if(progressCallback)
+    {
+      progressCallback({progress:25});
+    }
+    
     var parser = sax.parser(true,{trim:true}); // set first param to false for html-mode
     self.setupSax( parser );
     console.log("sax parser setup ok");
@@ -36,7 +44,6 @@ AMF.prototype.load = function( data, callback ){
     var chunk = "" 
   
   parser.onready= function (tag) {
-    console.log("parser ready again");  
     if( lc<l)
     {
       chunk = data.slice(lc, lc += chunkSize);
@@ -47,31 +54,104 @@ AMF.prototype.load = function( data, callback ){
       if(callback)
       {
         self.resultContainer.meshes = self.meshes;
+        self.resultContainer.objects = self.objects;
         self.resultContainer.textures = self.textures;
         self.resultContainer.materials = self.materials;
         self.resultContainer.constellations = self.constellations;
+        
+        if(progressCallback)
+        {
+          progressCallback({progress:75});
+        }
+        
+        var colorSize = 3;
+        
+        for(var z=0;z<self.objects.length;z++)
+        {
+          var obj = self.objects[z];
+          /*          
+          var total = obj._attributes["indices"].length;
+          var subLng = obj.volumes[0]._attributes["indices"].length;
+          var start = total- subLng;
+          //var remains = obj._attributes["indices"].splice(start + 1);
+          //obj._attributes["indices"] = remains;
+          console.log("removing from " + start + " length "+ subLng+" res "+obj._attributes["indices"].length);*/
+          var tmpPositions = [];
+          var tmpIndices= [];
+          var finalPositions = [];
+          //obj._attributes["posi"] = [];
+          
+          if(obj._attributes["vcolors"].length==0)
+          {
+            for(var c = 0;c<obj._attributes["position"].length;c+=3)
+            {
+              for(var i=0;i<colorSize;i++)
+              {
+                obj._attributes["vcolors"].push( i );
+              }
+            }
+          }
+          var colIndex=0;
+          for(var x=0;x<obj.volumes.length;x++)
+          {
+            var vol = obj.volumes[x];
+            console.log("volume " + x);
+            
+            for(var c = 0;c<vol._attributes["indices"].length;c++)
+            {
+              var iIndex = vol._attributes["indices"][c];
+              var index = (iIndex*3);
+              
+              tmpPositions.push( );
+              /*vol._attributes["position"].push( obj._attributes["position"][index] );
+              vol._attributes["position"].push( obj._attributes["position"][index+1] );
+              vol._attributes["position"].push( obj._attributes["position"][index+2] );*/
+              
+              /*tmpPositions.push( obj._attributes["position"][index] );
+              tmpPositions.push( obj._attributes["position"][index+1] );
+              tmpPositions.push( obj._attributes["position"][index+2] );*/
+            }
+                      
+            
+            //get vertex index, apply color//update existing color
+            if(vol.materialId)
+            {
+              var material = self.materialsById[vol.materialId];
+              if(material.color)
+              {
+                 var color = material.color;
+                 if(x == 1) color = [1,0,0,1];
+                 
+                 for(var c = 0;c<vol._attributes["indices"].length;c++)
+                  {
+                    var iIndex=vol._attributes["indices"][c];
+                    index = (iIndex*colorSize);
+                    if(index<0) index=0;
+                    obj._attributes["vcolors"][index] = color[0];
+                    obj._attributes["vcolors"][index+1] = color[1];
+                    obj._attributes["vcolors"][index+2] = color[2];
+                    //obj._attributes["vcolors"][index+3] = color[3];
+                  }
+              }
+            }
+          }
+          //self.generateObject();
+          //obj._attributes["position"] = tmpPositions;
+          //obj._attributes["position"] = finalPositions;
+          //obj._attributes["indices"] = tmpIndices;
+        }
+        
+        
         console.log("DONE PARSING, result:",self.resultContainer); 
         callback( self.resultContainer );
       }
     }
   }
-  
   chunk = data.slice(lc, lc += chunkSize);
   parser.write( chunk ).close();
-  
   }
-  
   console.log("before unpack");
   var data = this.unpack(data, foo);
-  //parser.write(data).close();
-  /*console.log("DONE PARSING, result:",this.resultContainer); 
-  
-  this.resultContainer.meshes = this.meshes;
-  this.resultContainer.textures = this.textures;
-  this.resultContainer.materials = this.materials;
-  this.resultContainer.constellations = this.constellations;
-  
-  return this.resultContainer;*/
 }
 
 AMF.prototype.unpack = function( data, callback )
@@ -84,25 +164,18 @@ AMF.prototype.unpack = function( data, callback )
       var entry = zip.files[entryName];
       if( entry._data !== null && entry !== undefined) 
       {
-      
-        /*var result = entry.asText();
-        return result;*/
         var ab = entry.asArrayBuffer();
         var blob = new Blob([ab]);
         var reader = new FileReader();
         reader.onload = function(e) {
             var txt = e.target.result;
-            console.log( "good text", txt);
             callback( txt );
         };
         reader.readAsText(blob);
-      
       }
-      
     }
   }
   catch(error){
-  //return this.ensureString(data);
     callback( this.ensureString(data) );
   }
 }
@@ -124,7 +197,6 @@ AMF.prototype.ensureString = function (buf) {
 
 AMF.prototype._generateObject = function( object )
 {
-  console.log("lsdf");
     if(this.recomputeNormals)
 	  {
 		  //TODO: only do this, if no normals were specified???
@@ -216,8 +288,6 @@ AMF.prototype.setupSax = function( parser )
         currentObject = {}//new THREE.Mesh();
         var id = tag.attributes["id"] || null;
         if(id) currentObject._id = id; objectsIdMap[id] = currentObject.uuid;
-
-        //currentObject.geometry = new THREE.Geometry();//TODO: does this not get auto created ???
         //temp storage:
         currentObject._attributes =  {};
         currentObject._attributes["position"] = [];
@@ -225,14 +295,26 @@ AMF.prototype.setupSax = function( parser )
         currentObject._attributes["color"] = [];
         currentObject._attributes["indices"] = [];
         currentObject._attributes["vcolors"] = [];
+        currentObject.volumes = [];
         currentObject.faceCount = 0;
 
         currentItem = currentObject;
       break;
       case 'volume':
         currentVolume = {};
+        currentVolume._attributes =  {};
+        currentVolume._attributes["position"] = [];
+        currentVolume._attributes["indices"] = [];
+        currentVolume._attributes["normal"] = [];
+        currentVolume._attributes["color"] = [];
+        currentVolume._attributes["indices"] = [];
+        currentVolume._attributes["vcolors"] = [];
+        currentVolume.faceCount = 0;
+        
+        
         var materialId = tag.attributes["materialid"] || null;
-        if(materialId) currentVolume.materialId = materialId;
+        if(materialId) currentVolume.materialId = parseInt(materialId);
+        currentItem = currentVolume;
       break;
       case 'triangle':
         currentTriangle = {}
@@ -245,7 +327,7 @@ AMF.prototype.setupSax = function( parser )
       case 'material':
         currentMaterial = {};
         var id = tag.attributes["id"] || null;
-        if(id) currentMaterial.id = id;
+        if(id) currentMaterial.id = parseInt(id);
 
         currentItem = currentMaterial;
       break;
@@ -256,7 +338,6 @@ AMF.prototype.setupSax = function( parser )
           currentTexture[attrName] = tag.attributes[attrName];
         }
         currentItem = currentTexture;
-        console.log("currentTexture",currentTexture);
       break;
 
       //constellation data
@@ -265,7 +346,6 @@ AMF.prototype.setupSax = function( parser )
         currentConstellation.children=[];
         var id = tag.attributes["id"] || null;
         if(id) currentConstellation._id = id;
-        console.log("constellation");
       break;
       case 'instance':
         currentObjectInstance = {};
@@ -281,7 +361,8 @@ AMF.prototype.setupSax = function( parser )
         if( currentItem )
         {
           var varName = currentTag.attributes["type"].toLowerCase();
-          currentItem[varName]= currentTag.value;  //console.log("currentItem", currentTag, currentTag.parent)
+          currentItem[varName]= currentTag.value;
+          console.log("currentItem", currentTag, varName);
         }
         currentMeta = null;
       break;
@@ -289,18 +370,19 @@ AMF.prototype.setupSax = function( parser )
       case "object":
         scope._generateObject( currentObject );
         meshes[currentObject._id] = currentObject;
-        rootObject.children.push(currentObject);
+        scope.objects.push( currentObject );
         scope.meshes.push( currentObject );
         console.log("object done");
         currentObject = null;
       break;
 
-      case "mesh":
-        console.log("mesh done");
+      case "volume"://per volume data (one volume == one three.js mesh)
+        currentObject.volumes.push( currentVolume );
+        currentVolume = null;
       break;
+      
       case "coordinates":
         var vertexCoords = parseVector3(currentTag);
-        //currentObject.geometry.vertices.push(vertexCoords); 
         currentObject._attributes["position"].push( vertexCoords[0],vertexCoords[1],vertexCoords[2] );
       break;
 
@@ -314,7 +396,7 @@ AMF.prototype.setupSax = function( parser )
        //order(descending): triangle, vertex, volume, object, material
         var color = parseColor(currentTag);
 
-        if(currentObject && (!currentTriangle)) currentObject._attributes["color"].push( color); //vertex level
+        if(currentObject && (!currentTriangle))  currentObject._attributes["vcolors"].push( color[0],color[1],color[2],color[3] );//vertex level
         //if(currentObject) currentObject["color"]=  color; //object level
         if(currentVolume) currentVolume["color"] = color;
         if(currentTriangle) currentTriangle["color"] = color;
@@ -330,22 +412,17 @@ AMF.prototype.setupSax = function( parser )
         //console.log("closing map", currentTag);
       break;
 
-      
-      case "volume"://per volume data (one volume == one three.js mesh)
-        currentVolume = null;
-      break;
-
       case "triangle":
         var v1 = parseText( currentTag.v1.value ,"int" , 0);
         var v2 = parseText( currentTag.v2.value ,"int" , 0);
         var v3 = parseText( currentTag.v3.value ,"int" , 0);
         currentObject._attributes["indices"].push( v1, v2, v3 );
+        currentVolume._attributes["indices"].push( v1, v2, v3 );
 
         var colorData = currentObject._attributes["color"];
         if(colorData.length>0)
         {
           var colors = [colorData[v1] ,colorData[v2], colorData[v3]];
-          console.log("colors",colorData )
         }
         else
         {
@@ -360,11 +437,8 @@ AMF.prototype.setupSax = function( parser )
         {
           var normals = [defaultVertexNormal,defaultVertexNormal, defaultVertexNormal];
         }
-        
-        
         //a, b, c, normal, color, materialIndex
         /*var face = new THREE.Face3( v1, v2, v3 , normals);
-
         //triangle, vertex, volume, object, material
         //set default
         face.color = defaultColor; 
@@ -379,14 +453,10 @@ AMF.prototype.setupSax = function( parser )
         */
         var color = [0,0,0,1];
         if('color' in currentTriangle) {
-        //console.log("currentTriangle['color']",currentTriangle["color"] ); }
         color = currentTriangle["color"];
-        //currentObject._attributes["vcolors"].push( color[0],color[1],color[2],color[3] );
-        //currentObject._attributes["vcolors"].push( color[0],color[1],color[2],color[3] );
+                currentObject._attributes["vcolors"].push( color[0],color[1],color[2],color[3] );
         }
-        currentObject._attributes["vcolors"].push( color[0],color[1],color[2],color[3] );
-        currentObject._attributes["vcolors"].push( color[0],color[1],color[2],color[3] );
-        currentObject._attributes["vcolors"].push( color[0],color[1],color[2],color[3] );
+
         
       break;
 
@@ -412,7 +482,8 @@ AMF.prototype.setupSax = function( parser )
       //materials and textures    
       case "material":
           console.log("getting material data");
-          materials[currentMaterial.id] = currentMaterial;
+          scope.materialsById[currentMaterial.id] = currentMaterial;
+          scope.materials.push( currentMaterial );
           currentMaterial = null;
       break;
       case "texture":
@@ -432,9 +503,7 @@ AMF.prototype.setupSax = function( parser )
           var rotation = parseVector3(currentTag, "r", 1.0);
 
           var objectId= currentObjectInstance.id;
-          var meshInstance = meshes[objectId] //.clone();
-			    //meshInstance.position.add(position);
-				  //meshInstance.rotation.set(rotation.x,rotation.y,rotation.z); 
+          var meshInstance = meshes[objectId];
 				  var meshInstanceData = {instance:meshInstance,pos:position,rot:rotation};
           currentConstellation.children.push( meshInstanceData );
           currentObjectInstance = null;
@@ -475,6 +544,53 @@ AMF.prototype.setupSax = function( parser )
     //scope._applyMaterials(materials, textures, meshes,facesThatNeedMaterial);
   };*/
 }
+
+
+AMF.prototype._parseTexture = function ( textureData ){
+	var rawImg = textureData.imgData;
+  //'data:image/png;base64,'+
+  /*Spec says  : 
+  The data will be encoded string of bytes in Base64 encoding, as grayscale values.
+  Grayscale will be encoded as a string of individual bytes, one per pixel, 
+  specifying the grayscale level in the 0-255 range : 
+  how to handle grayscale combos?*/
+  //Since textures are grayscale, and one per channel (r,g,b), we need to combine all three to get data
+
+  /*rawImg = 'iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAALEgAACxIB0t1+/AAAAB90RVh0U29mdHdhcmUATWFjcm9tZWRpYSBGaXJld29ya3MgOLVo0ngAAAAWdEVYdENyZWF0aW9uIFRpbWUAMDUvMjgvMTGdjbKfAAABwklEQVQ4jdXUsWrjQBCA4X+11spikXAEUWdSuUjh5goXx1V5snu4kMLgyoEUgYNDhUHGsiNbCK200hWXFI7iOIEUd9Mu87E7MzsC6PjCcL4S+z/AwXuHQgg8T6GUi+MI2rbDmJqqMnTd26U/CXqeRxD4aO2ilIOUAms7jGkpipr9vqSqqo+BnudxcaEZjRRx7DIeK7SWFIUlSQxpKhkMHLZbemgPFEIQBD6jkeL62mc2u2QyuSIMA/J8z+Pjb+bzNQ8P0DTtedDzFFq7xLHLbHbJzc0PptPv+H5EWWYsl3fALZvNirK05LnCGHMaVOpvzcZjxWRy9Yx9A2J8P2U6hSRJuL/fsFoZhsNjsDc2jiOQUqC1JAwDfD8CYkA/oxFhGKC1REqB44jj/Ndg23ZY21EUljzfU5YZkAIFkFKWGXm+pygs1nbUdXOUL4Gfr5vi+wohBFFk0VoQRQNcN6Msf7Fc3rFYLFksnsiymu22oG3b0zWsKkNR1KSpZD5fA7ckSdLrcprWHA6Gpjm+oeCNbXN+Dmt2O8N6/YS19jz4gp76KYeDYbc79LB3wZdQSjEcKhxHUNcNVVX3nvkp8LPx7+/DP92w3rYV8ocfAAAAAElFTkSuQmCC';*/
+
+  if(detectEnv.isNode)
+  {
+    function btoa(str) {
+      var buffer;
+      if (str instanceof Buffer) {
+        buffer = str;
+      } else {
+        buffer = new Buffer(str.toString(), 'binary');
+      }
+      return buffer.toString('base64');
+    }
+    rawImg = btoa(rawImg);
+  }
+  else
+  {
+    rawImg = btoa(rawImg);
+    /*var image = document.createElement( 'img' );
+    image.src = rawImg;
+    var texture = new THREE.Texture( image );*/
+  }
+  /*var texture = new THREE.DataTexture( rawImg, parseText(textureData.width,"int",256) , parseText(textureData.height,"int",256), THREE.RGBAFormat );
+  texture.needsUpdate = true;*/
+	
+	var id = textureData.id;
+	var type = textureData.type;
+	var tiling= textureData.tiled;
+  var depth = parseText(textureData.depth,"int",1) ;
+	
+  console.log("texture data", id, type, tiling,depth );
+	return textureData;
+}
+
+///
 
 AMF.prototype._applyMaterials = function(materials, textures, meshes, facesThatNeedMaterial)
 {//since materials are usually defined after objects/ volumes, we need to apply
@@ -581,9 +697,9 @@ AMF.prototype._applyMaterials = function(materials, textures, meshes, facesThatN
     //face.materialIndex  = rtexid;
 		//face.materialIndex  = 0;
 
-		var uv1 = (u1 !== null && v1 !=null) ? new THREE.Vector2(u1,v1) : null;
-		var uv2 = (u2 !== null && v2 !=null) ? new THREE.Vector2(u2,v2) : null; 
-	  var uv3 = (u3 !== null && v3 !=null) ? new THREE.Vector2(u3,v3) : null;
+		var uv1 = (u1 !== null && v1 !=null) ? [u1,v1] : null;
+		var uv2 = (u2 !== null && v2 !=null) ? [u2,v2] : null; 
+	  var uv3 = (u3 !== null && v3 !=null) ? [u3,v3] : null;
 		
     var mappingData = {matId:0, uvs:[uv1,uv2,uv3]};
     //currentGeometry.faceVertexUvs[ 0 ].push( [uv1,uv2,uv3]);

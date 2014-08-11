@@ -99,15 +99,13 @@ AMFParser.prototype.parse = function(data, parameters)
   var s = Date.now();
   console.log("in amf parser");
   
-  
-  
       function onDataLoaded( data )
     {
       if(data.constellations.length<1)
       {
-        for(var i=0;i<data.meshes.length;i++)
+        for(var i=0;i<data.objects.length;i++)
         {
-          var modelData = data.meshes[i];
+          var modelData = data.objects[i];
           var model = self.createModelBuffers( modelData );
 				  rootObject.add( model );
         }
@@ -132,13 +130,18 @@ AMFParser.prototype.parse = function(data, parameters)
 	if ( useWorker ) {
 	  var worker = new Worker( "./amf-worker.js" );
 		worker.onmessage = function( event ) {
-		  console.log("data recieved in main thread");//, event.data.data);
-	    var data = event.data.data;
-
-      onDataLoaded( data );
-
-	    //var result = this.recurse( data, rootObject, this.createModelBuffers);
-      deferred.resolve( rootObject );
+		  if("data" in event.data)
+		  {
+		    var data = event.data.data;
+		    console.log("data recieved in main thread", data);
+        onDataLoaded( data );
+        deferred.resolve( rootObject );
+      }
+      else if("progress" in event.data)
+      {
+        console.log("got progress", event.data.progress);
+        deferred.notify( {"parsing":event.data.progress} )
+      }
 		}
 		console.log("sending data to worker");
 		worker.postMessage( {data:data});
@@ -174,24 +177,24 @@ AMFParser.prototype.recurse = function(node, newParent, callback)
 AMFParser.prototype.createModelBuffers = function ( modelData ) {
   console.log("creating model buffers",modelData);
   
-  var foo = modelData//.children[0];
-  faces = foo.faceCount;
+  var faces = modelData.faceCount;
+  var colorSize =3;
   
   var vertices = new Float32Array( faces * 3 * 3 );
 	var normals = new Float32Array( faces * 3 * 3 );
-	var colors = new Float32Array( faces *3 * 4 );
-	var indices = new Uint16Array( faces * 3  );
+	var colors = new Float32Array( faces *3 * colorSize );
+	var indices = new Uint32Array( faces * 3  );
 	
-	vertices.set( foo._attributes.position );
-	normals.set( foo._attributes.normal );
-	indices.set( foo._attributes.indices );
-	colors.set( foo._attributes.vcolors );
+	vertices.set( modelData._attributes.position );
+	normals.set( modelData._attributes.normal );
+	indices.set( modelData._attributes.indices );
+	colors.set( modelData._attributes.vcolors );
 
   var geometry = new THREE.BufferGeometry();
 	geometry.addAttribute( 'position', new THREE.BufferAttribute( vertices, 3 ) );
-	geometry.addAttribute( 'normal', new THREE.BufferAttribute( normals, 3 ) );
+	//geometry.addAttribute( 'normal', new THREE.BufferAttribute( normals, 3 ) );
   geometry.addAttribute( 'index', new THREE.BufferAttribute( indices, 1 ) );
-  geometry.addAttribute( 'color', new THREE.BufferAttribute( colors, 4 ) );
+  geometry.addAttribute( 'color', new THREE.BufferAttribute( colors, colorSize ) );
   
   if(this.recomputeNormals)
   {
@@ -216,39 +219,11 @@ AMFParser.prototype.createModelBuffers = function ( modelData ) {
 				} );
 
   var color = this.defaultColor ;
-  //var material = new this.defaultMaterialType({color:color});
+  var material = new this.defaultMaterialType({color:0XFFFFFF,vertexColors: THREE.VertexColors});
   var mesh = new THREE.Mesh( geometry, material );
   return mesh
 }
 
-
-AMFParser.prototype.unpack = function( data )
-{
-  try
-  {
-    var zip = new JSZip(data);
-    for(var entryName in zip.files)
-    {
-      var entry = zip.files[entryName];
-      if( entry._data !== null && entry !== undefined) return entry.asText();
-   }
-  }
-  catch(error){return this.ensureString(data);}
-}
-
-AMFParser.prototype.ensureString = function (buf) {
-
-	if (typeof buf !== "string"){
-		var array_buffer = new Uint8Array(buf);
-		var str = '';
-		for(var i = 0; i < buf.byteLength; i++) {
-			str += String.fromCharCode(array_buffer[i]); // implicitly assumes little-endian
-		}
-		return str;
-	} else {
-		return buf;
-	}
-};
 
 AMFParser.prototype._generateObject = function( object )
 {
@@ -276,12 +251,6 @@ AMFParser.prototype._generateObject = function( object )
     //console.log("finished Object / THREE.Mesh",currentObject)
 }
 
-AMFParser.prototype._generateScene = function ( ){
-  console.log("generating scene");
-  // if there is constellation data, don't just add meshes to the scene, but use 
-	//the info from constellation to do so (additional transforms)
-  return
-}
 
 AMFParser.prototype._applyMaterials = function(materials, textures, meshes, facesThatNeedMaterial)
 {//since materials are usually defined after objects/ volumes, we need to apply
@@ -312,51 +281,7 @@ AMFParser.prototype._applyMaterials = function(materials, textures, meshes, face
   }*/
 }
 
-AMFParser.prototype._parseTexture = function ( textureData ){
-	var rawImg = textureData.imgData;
-  //'data:image/png;base64,'+
-  /*Spec says  : 
-  The data will be encoded string of bytes in Base64 encoding, as grayscale values.
-  Grayscale will be encoded as a string of individual bytes, one per pixel, 
-  specifying the grayscale level in the 0-255 range : 
-  how to handle grayscale combos?*/
-  //Since textures are grayscale, and one per channel (r,g,b), we need to combine all three to get data
 
-  /*rawImg = 'iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAALEgAACxIB0t1+/AAAAB90RVh0U29mdHdhcmUATWFjcm9tZWRpYSBGaXJld29ya3MgOLVo0ngAAAAWdEVYdENyZWF0aW9uIFRpbWUAMDUvMjgvMTGdjbKfAAABwklEQVQ4jdXUsWrjQBCA4X+11spikXAEUWdSuUjh5goXx1V5snu4kMLgyoEUgYNDhUHGsiNbCK200hWXFI7iOIEUd9Mu87E7MzsC6PjCcL4S+z/AwXuHQgg8T6GUi+MI2rbDmJqqMnTd26U/CXqeRxD4aO2ilIOUAms7jGkpipr9vqSqqo+BnudxcaEZjRRx7DIeK7SWFIUlSQxpKhkMHLZbemgPFEIQBD6jkeL62mc2u2QyuSIMA/J8z+Pjb+bzNQ8P0DTtedDzFFq7xLHLbHbJzc0PptPv+H5EWWYsl3fALZvNirK05LnCGHMaVOpvzcZjxWRy9Yx9A2J8P2U6hSRJuL/fsFoZhsNjsDc2jiOQUqC1JAwDfD8CYkA/oxFhGKC1REqB44jj/Ndg23ZY21EUljzfU5YZkAIFkFKWGXm+pygs1nbUdXOUL4Gfr5vi+wohBFFk0VoQRQNcN6Msf7Fc3rFYLFksnsiymu22oG3b0zWsKkNR1KSpZD5fA7ckSdLrcprWHA6Gpjm+oeCNbXN+Dmt2O8N6/YS19jz4gp76KYeDYbc79LB3wZdQSjEcKhxHUNcNVVX3nvkp8LPx7+/DP92w3rYV8ocfAAAAAElFTkSuQmCC';*/
-
-  if(detectEnv.isNode)
-  {
-    function btoa(str) {
-      var buffer;
-      if (str instanceof Buffer) {
-        buffer = str;
-      } else {
-        buffer = new Buffer(str.toString(), 'binary');
-      }
-      return buffer.toString('base64');
-    }
-    rawImg = btoa(rawImg);
-  }
-  else
-  {
-    rawImg = btoa(rawImg);
-    /*var image = document.createElement( 'img' );
-    image.src = rawImg;
-    var texture = new THREE.Texture( image );*/
-  }
-  var texture = new THREE.DataTexture( rawImg, parseText(textureData.width,"int",256) , parseText(textureData.height,"int",256), THREE.RGBAFormat );
-  texture.needsUpdate = true;
-	
-	var id = textureData.id;
-	var type = textureData.type;
-	var tiling= textureData.tiled;
-  var depth = parseText(textureData.depth,"int",1) ;
-	
-  console.log("texture data", id, type, tiling,depth );
-	return texture;
-}
-
-///
 
 
 
