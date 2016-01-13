@@ -10,7 +10,7 @@ import parse, {outputs} from '../src/index'
 //import parse, {outputs}'../lib/stl-parser'
 
 
-describe("STL parser", function() {
+describe("AMF parser", function() {
   //console.log("Parser outputs", outputs, parse)
 
   it("should handle errors gracefully", done => {
@@ -26,7 +26,7 @@ describe("STL parser", function() {
   //STREAMING parser
   it("can parse uncompressed amf files with vertex normals (streaming)", done => {
     this.timeout(5000)
-    let data = fs.readFileSync("specs/data/Sphere20Face.amf",'binary')
+    let data = fs.readFileSync("test/data/Sphere20Face.amf",'binary')
     let obs  = parse(data)
    
 
@@ -42,7 +42,7 @@ describe("STL parser", function() {
 
   /*it("can parse uncompressed amf files with vertex colors (streaming)", function() {
     this.timeout(5000)
-    let data = fs.readFileSync("specs/data/VertColors.amf",'binary')
+    let data = fs.readFileSync("test/data/VertColors.amf",'binary')
     let obs  = parse(data)
     assert.equal(obs.children[0].geometry.vertices.length, 8)
     assert.equal(obs.children[0].geometry.faces.length, 12)
@@ -50,7 +50,7 @@ describe("STL parser", function() {
 
   it("can parse uncompressed amf files with face colors (streaming)", function() {
     this.timeout(5000)
-    let data = fs.readFileSync("specs/data/FaceColors.amf",'binary')
+    let data = fs.readFileSync("test/data/FaceColors.amf",'binary')
     let obs  = parse(data)
     assert.equal(obs.children[0].geometry.vertices.length, 8)
     assert.equal(obs.children[0].geometry.faces.length, 12)
@@ -58,7 +58,7 @@ describe("STL parser", function() {
   })
 
   it("can parse compressed amf files with multiple materials (streaming)", function() {
-    data = fs.readFileSync("specs/data/hackaday_dual_color.amf",'binary')
+    data = fs.readFileSync("test/data/hackaday_dual_color.amf",'binary')
     obs = parse(data)
     assert.equal(obs.children[0].geometry.vertices.length, 2112)
     assert.equal(obs.children[0].geometry.faces.length, 1520)
@@ -66,7 +66,7 @@ describe("STL parser", function() {
   })
  
   it("can parse uncompressed amf files with constellations (streaming)", function() {
-    data = fs.readFileSync("specs/data/Constellation.amf",'binary')
+    data = fs.readFileSync("test/data/Constellation.amf",'binary')
     obs = parse(data)
     assert.equal(obs.children.length, 2)
     assert.equal(obs.children[0].geometry.vertices.length, 8)
@@ -82,14 +82,14 @@ describe("STL parser", function() {
   })
 
   it("can parse uncompressed, larger amf files  (streaming)", function() {
-    data = fs.readFileSync("specs/data/Rook.amf",'binary')
+    data = fs.readFileSync("test/data/Rook.amf",'binary')
     obs = parse(data)
     assert.equal(obs.children[0].geometry.vertices.length, 1843)
     assert.equal(obs.children[0].geometry.faces.length, 3682)
   })
 
   it("can parse compressed amf files(streaming)", function() {
-    data = fs.readFileSync("specs/data/stapel_dual.amf",'binary')
+    data = fs.readFileSync("test/data/stapel_dual.amf",'binary')
     obs = parse(data)
     assert.equal(obs.children[0].geometry.vertices.length, 564)
   })*/
@@ -97,14 +97,14 @@ describe("STL parser", function() {
 
   /*
   it("can parse compressed amf files", function() {
-    data = fs.readFileSync("specs/data/stapel_dual.amf",'binary')
+    data = fs.readFileSync("test/data/stapel_dual.amf",'binary')
     obs = parse(data)
     assert.equal(obs instanceof THREE.Object3D).toBe(true)
     assert.equal(obs.children[0].geometry.vertices.length, 564)
   })
 
   it("can parse uncompressed amf files", function() {
-    data = fs.readFileSync("specs/data/Rook.amf",'binary')
+    data = fs.readFileSync("test/data/Rook.amf",'binary')
     obs = parse(data)
     assert.equal(obs instanceof THREE.Object3D).toBe(true)
     assert.equal(obs.children[0].name, "Default")
@@ -115,7 +115,7 @@ describe("STL parser", function() {
 /*
   //crashes node with normal parser: now it takes about 30 secs
   it("can parse very large amf files(streaming)", function(){
-    data = fs.readFileSync("specs/data/RoboIce-dual.amf",'binary')
+    data = fs.readFileSync("test/data/RoboIce-dual.amf",'binary')
     obs = parse(data)
     //assert.equal(obs.children[0].name, "Default")
     assert.equal(obs.children[0].geometry.vertices.length, 144590)
@@ -126,7 +126,7 @@ describe("STL parser", function() {
   //TODO: incompletes after this point
   it("can parse uncompressed amf files with edges (streaming)", function() {
     //TODO: find correct way to test texture parsing
-    data = fs.readFileSync("specs/data/CurveEdgeTest.amf",'binary')
+    data = fs.readFileSync("test/data/CurveEdgeTest.amf",'binary')
     obs = parse(data)
     assert.equal(obs.children[0].geometry.vertices.length, 12)
     assert.equal(obs.children[0].geometry.faces.length, 12)
@@ -135,7 +135,7 @@ describe("STL parser", function() {
   
   it("can parse uncompressed amf files with textures (streaming)", function() {
     //TODO: find correct way to test texture parsing
-    data = fs.readFileSync("specs/data/Amf_Cube.amf",'binary')
+    data = fs.readFileSync("test/data/Amf_Cube.amf",'binary')
     obs = parse(data)
     assert.equal(obs.children[0].geometry.vertices.length, 8)
     assert.equal(obs.children[0].geometry.faces.length, 12)
