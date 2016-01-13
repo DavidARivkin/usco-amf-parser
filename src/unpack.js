@@ -2,9 +2,9 @@ let JSZip = require( 'jszip' )
 import Rx from 'rx'
 
 
-export function unpack ( data )
+export default function unpack ( data )
 {
-  let result = new Rx.Subject()
+  let result = new Rx.ReplaySubject(1)
   try
   {
     let zip = new JSZip(data)
@@ -18,7 +18,6 @@ export function unpack ( data )
         let reader = new FileReader()
         reader.onload = function(e) {
             let txt = e.target.result
-
             result.onNext( txt )
         }
         reader.readAsText(blob)
@@ -26,7 +25,8 @@ export function unpack ( data )
     }
   }
   catch(error){
-    result.onNext( ensureString(data) )
+    let formated = ensureString(data)
+    result.onNext( formated )
   }
 
   return result
