@@ -1,21 +1,44 @@
-amf (http://en.wikipedia.org/wiki/Additive_Manufacturing_File_Format) format parser for the USCO project
+## usco-amf-parser
+
+[![GitHub version](https://badge.fury.io/gh/usco%2Fusco-amf-parser.svg)](https://badge.fury.io/gh/usco%2Fusco-amf-parser)
+
+[amf](http://en.wikipedia.org/wiki/Additive_Manufacturing_File_Format) format parser for USCO project
+
+Optimized for speed in the browser (webworkers etc)
 
 
-General information
--------------------
-This repository contains both the:
-- node.js version:
-amf-parser.js at the root of the project
-- polymer.js/browser version which is a combo of
-lib/amf-parser.js (browserified version of the above)
-amf-parser.html
+
+## General information
+
+  - returns raw buffer data wrapped in an RxJs observable (soon to be most.js)
+  - useable both on Node.js & client side 
 
 
-How to generate browser/polymer.js version (with require support):
-------------------------------------------------------------------
-Type: 
+## Usage 
 
-      grunt build-browser-lib
+  
+```
+  import parse,  {outputs} from '../lib/amf-parser'
 
-This will generate the correct browser(ified) version of the source in the lib folder
+  let data = fs.readFileSync("mesh.amf")
+
+  let threemfObs = parse(data) //we get an observable back
+
+  threemfObs.forEach(function(parsedSTL){
+    //DO what you want with the data wich is something like {vertices,normals,etc}
+    console.log(parsedSTL) 
+})
+```
+
+
+
+## LICENSE
+
+[The MIT License (MIT)](https://github.com/usco/usco-amf-parser/blob/master/LICENSE)
+
+- - -
+
+[![Build Status](https://travis-ci.org/usco/usco-amf-parser.svg?branch=master)](https://travis-ci.org/usco/usco-amf-parser)
+[![Dependency Status](https://david-dm.org/usco/usco-amf-parser.svg)](https://david-dm.org/usco/usco-amf-parser)
+[![devDependency Status](https://david-dm.org/usco/usco-amf-parser/dev-status.svg)](https://david-dm.org/usco/usco-amf-parser#info=devDependencies)
 
