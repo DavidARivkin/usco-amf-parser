@@ -51,12 +51,14 @@ BUT volumes can reference materials ...
 
 var detectEnv = require("composite-detect")
 
-if(detectEnv.isModule) var JSZip = require( 'jszip' )
-if(detectEnv.isModule) var sax = require( 'sax' )
-if(detectEnv.isModule) var Q = require('q')
+let JSZip = require( 'jszip' )
+let sax = require( 'sax' )
 
-var AMF = require("./amf.js")
+//var AMF = require("./amf.js")
+import assign from 'fast.js/object/assign'
 
+import Rx from 'rx'
+import unpack from './unpack'
 
 export const outputs = ["geometry", "materials", "textures"] //to be able to auto determine data type(s) fetched by parser
 /* this.defaultMaterialType = THREE.MeshPhongMaterial//THREE.MeshLambertMaterial //
@@ -88,6 +90,142 @@ export default function parse(data, parameters={}){
     - generate materials             from raw data's materials list
     - generate final assembly(ies)
   */
+
+
+  function parseRawXml(data){
+    const parsedData = new Rx.ReplaySubject(1)
+
+    function onTagOpen(tag){  
+      //console.log("onTagOpen",tag)    
+      parsedData.onNext( {tag, start:true} )
+    }
+
+    function onTagClose(tag){
+      //console.log("onTagClose",tag)
+      parsedData.onNext( {tag, end:true} )
+    }
+
+    /*let saxStream =  sax.createStream(true, {trim:true})
+    saxStream.write( data )
+
+    //console.log("saxStream",saxStream)
+    saxStream.on("error", function (e) {
+      // unhandled errors will throw, since this is a proper node
+      // event emitter.
+      console.error("error!", e)
+      // clear the error
+      this._parser.error = null
+      this._parser.resume()
+    })
+    saxStream.on("opentag", onTagOpen)*/
+
+    let length = data.length
+    let chunkedLength = 0
+    let chunkSize     = length
+    let chunk         = "" 
+    let c = 0
+
+    let parser = sax.parser(true,{trim:true})
+    parser.onopentag  = onTagOpen
+    parser.onclosetag = onTagClose
+    parser.onerror = function(error)
+    { 
+        console.log("error in parser", error)
+        //console.log(error)
+        //throw error
+        parser.resume()
+    } 
+
+
+    parser.onready= function (tag) {
+
+      if( chunkedLength < length)
+      {
+        chunk = data.slice(chunkedLength, chunkedLength += chunkSize)
+        parser.write( chunk ).close()
+      }
+    }
+
+    chunk = data.slice(chunkedLength, chunkedLength += chunkSize)
+    parser.write( chunk ).close()
+  
+    //parsedData.subscribe( e=> parser.write( data ) )
+    return parsedData.share() //Rx.Observable.from( saxStream )
+  }
+
+  function parseRawXml2(){
+    return Rx.Observable.create(function (observer) {
+      observer.onNext(42)
+      observer.onNext(10)
+      observer.onNext(90)
+      observer.onCompleted()
+
+      // Any cleanup logic might go here
+      return function () {
+        console.log('disposed')
+      }
+    })
+  }
+
+  function parseRawXml3(data){
+    return Rx.Observable.create(function (parsedData) {
+
+      function onTagOpen(tag){  
+        //console.log("onTagOpen",tag)    
+        parsedData.onNext( {tag, start:true} )
+      }
+
+      function onTagClose(tag){
+        //console.log("onTagClose",tag)
+        parsedData.onNext( {tag, end:true} )
+      }
+
+      let length = data.length
+      let chunkedLength = 0
+      let chunkSize     = length
+      let chunk         = "" 
+      let c = 0
+
+      let parser = sax.parser(true,{trim:true})
+      parser.onopentag  = onTagOpen
+      parser.onclosetag = onTagClose
+      parser.onerror = function(error)
+      { 
+          console.log("error in parser", error)
+          //console.log(error)
+          //throw error
+          parser.resume()
+      } 
+
+
+      parser.onready= function (tag) {
+
+        if( chunkedLength < length)
+        {
+          chunk = data.slice(chunkedLength, chunkedLength += chunkSize)
+          parser.write( chunk ).close()
+        }
+      }
+
+      chunk = data.slice(chunkedLength, chunkedLength += chunkSize)
+      parser.write( chunk ).close()
+
+
+      //parsedData.onCompleted()
+
+      // Any cleanup logic might go here
+      return function () {
+        console.log('disposed')
+      }
+    })
+
+   
+  }
+
+  return unpack(data)
+    //.tap(e=>console.log("unpacked",e))
+    .flatMap(parseRawXml3)
+   
 
   if ( useWorker ) {
 
@@ -126,8 +264,8 @@ export default function parse(data, parameters={}){
   }
   else
   {
-    let amf = new AMF()
-    amf.load( data, onDataLoaded )
+    //let amf = new AMF()
+    //amf.load( data, onDataLoaded )
   }
 
   return obs
